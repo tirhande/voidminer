@@ -19,7 +19,14 @@ if (scriptMatch === null) {
   throw new Error("dist/index.html 에서 스크립트 태그를 찾지 못했다.");
 }
 
-const bundlePath = join(distDir, scriptMatch[1].replace(/^\//, ""));
+// src 는 배포용 base(/voidminer/ 등)가 붙은 절대 경로다. 파일명만 떼어
+// dist/assets 에서 직접 찾는다.
+const bundleName = scriptMatch[1].split("/").pop();
+if (bundleName === undefined || bundleName === "") {
+  throw new Error(`스크립트 경로에서 파일명을 얻지 못했다: ${scriptMatch[1]}`);
+}
+
+const bundlePath = join(distDir, "assets", bundleName);
 const bundleSource = await readFile(bundlePath, "utf8");
 
 const styleMatch = distIndex.match(/<style>[\s\S]*?<\/style>/);

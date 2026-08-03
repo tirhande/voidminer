@@ -31,18 +31,23 @@ export class Ship {
     this.object3D = new THREE.Group();
     this.object3D.name = "PlayerShip";
 
+    // 환경 맵이 없는 장면이므로 금속성을 낮게 잡는다. 금속은 반사로 밝아지는
+    // 재질이라, 반사할 것이 없는 우주 공간에서 금속성을 높이면 검게 죽는다.
+    // 자체 발광을 약하게 깔아 그림자 쪽도 완전히 어두워지지 않게 한다.
     const hullMaterial: THREE.MeshStandardMaterial = new THREE.MeshStandardMaterial({
-      color: 0x2c3a52,
-      metalness: 0.75,
-      roughness: 0.36,
+      color: 0x9fb2ce,
+      metalness: 0.3,
+      roughness: 0.55,
+      emissive: 0x243a5c,
+      emissiveIntensity: 0.45,
       flatShading: true,
     });
     const trimMaterial: THREE.MeshStandardMaterial = new THREE.MeshStandardMaterial({
-      color: 0x11202f,
-      metalness: 0.55,
-      roughness: 0.5,
-      emissive: 0x1d7f9e,
-      emissiveIntensity: 0.7,
+      color: 0x44607a,
+      metalness: 0.25,
+      roughness: 0.6,
+      emissive: 0x2fb0d6,
+      emissiveIntensity: 1.3,
       flatShading: true,
     });
 

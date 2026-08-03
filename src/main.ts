@@ -18,17 +18,28 @@ function requireCanvas(id: string): HTMLCanvasElement {
   return element;
 }
 
-/** 우주 공간의 조명을 구성한다. 먼 항성 하나와 약한 환경광이 전부다. */
+/**
+ * 우주 공간의 조명을 구성한다.
+ *
+ * 먼 항성이 주광이고, 반대편에서 푸른 반사광이 윤곽을 잡는다. 여기에 위아래로
+ * 색이 갈리는 반구광을 더해 그림자면이 완전히 검게 죽지 않도록 받쳐준다.
+ */
 function createLighting(): THREE.Object3D[] {
-  const ambient: THREE.AmbientLight = new THREE.AmbientLight(0x24405c, 1.1);
+  const hemisphere: THREE.HemisphereLight = new THREE.HemisphereLight(
+    0x9dc6ec,
+    0x263148,
+    1.5,
+  );
 
-  const keyLight: THREE.DirectionalLight = new THREE.DirectionalLight(0xfff0dc, 2.4);
+  const ambient: THREE.AmbientLight = new THREE.AmbientLight(0x4b6a91, 1.2);
+
+  const keyLight: THREE.DirectionalLight = new THREE.DirectionalLight(0xfff2e0, 3.4);
   keyLight.position.set(-120, 90, -60);
 
-  const rimLight: THREE.DirectionalLight = new THREE.DirectionalLight(0x4f9fd6, 0.9);
+  const rimLight: THREE.DirectionalLight = new THREE.DirectionalLight(0x6fb6e8, 1.8);
   rimLight.position.set(80, -40, 110);
 
-  return [ambient, keyLight, rimLight];
+  return [hemisphere, ambient, keyLight, rimLight];
 }
 
 function bootstrap(): void {
