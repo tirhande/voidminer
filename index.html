@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VOIDMINER</title>
+    <style>
+      :root {
+        --hud-cyan: #7fe3ff;
+        --hud-dim: rgba(127, 227, 255, 0.55);
+      }
+
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #04060d;
+        font-family: ui-monospace, "SF Mono", Menlo, monospace;
+        color: var(--hud-cyan);
+        cursor: crosshair;
+      }
+
+      #viewport {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+
+      .hud {
+        position: fixed;
+        pointer-events: none;
+        font-size: 12px;
+        letter-spacing: 0.08em;
+        text-shadow: 0 0 8px rgba(127, 227, 255, 0.5);
+      }
+
+      #hud-readout {
+        left: 24px;
+        bottom: 24px;
+        line-height: 1.7;
+      }
+
+      #hud-readout .label {
+        color: var(--hud-dim);
+      }
+
+      #hud-controls {
+        right: 24px;
+        bottom: 24px;
+        text-align: right;
+        line-height: 1.7;
+        color: var(--hud-dim);
+      }
+
+      #hud-reticle {
+        left: 50%;
+        top: 50%;
+        width: 26px;
+        height: 26px;
+        margin: -13px 0 0 -13px;
+        border: 1px solid rgba(127, 227, 255, 0.35);
+        border-radius: 50%;
+      }
+
+      #hud-reticle::after {
+        content: "";
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 2px;
+        height: 2px;
+        margin: -1px 0 0 -1px;
+        background: var(--hud-cyan);
+      }
+
+      #overlay {
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-content: center;
+        gap: 18px;
+        text-align: center;
+        background: radial-gradient(
+          ellipse at center,
+          rgba(4, 6, 13, 0.72),
+          rgba(4, 6, 13, 0.96)
+        );
+        backdrop-filter: blur(2px);
+        transition: opacity 0.35s ease;
+      }
+
+      #overlay.hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      #overlay h1 {
+        font-size: 44px;
+        font-weight: 500;
+        letter-spacing: 0.42em;
+        text-indent: 0.42em;
+        text-shadow: 0 0 24px rgba(127, 227, 255, 0.45);
+      }
+
+      #overlay p {
+        font-size: 13px;
+        color: var(--hud-dim);
+        letter-spacing: 0.1em;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="viewport"></canvas>
+
+    <div id="hud-reticle" class="hud"></div>
+
+    <div id="hud-readout" class="hud">
+      <div><span class="label">SPD</span> <span id="readout-speed">0</span> m/s</div>
+      <div><span class="label">THR</span> <span id="readout-throttle">IDLE</span></div>
+      <div><span class="label">AST</span> <span id="readout-assist">OFF</span></div>
+    </div>
+
+    <div id="hud-controls" class="hud">
+      <div>W/S THRUST &nbsp; A/D STRAFE &nbsp; R/F LIFT</div>
+      <div>Q/E ROLL &nbsp; MOUSE AIM &nbsp; SHIFT BOOST</div>
+      <div>SPACE INERTIAL ASSIST &nbsp; ESC RELEASE</div>
+    </div>
+
+    <div id="overlay">
+      <h1>VOIDMINER</h1>
+      <p>CLICK TO ENGAGE FLIGHT CONTROL</p>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
