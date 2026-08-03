@@ -30,10 +30,12 @@ const IDLE_INPUT: FlightInputState = {
 };
 
 /**
- * 키보드와 포인터 락 마우스로 조종 입력을 수집한다.
+ * 키보드와 마우스로 조종 입력을 수집한다.
  *
- * 포인터가 잠기지 않은 동안에는 모든 입력이 0으로 유지된다. 조준을 마우스로
- * 처리하는 이상, 커서가 살아 있는 상태에서 함선이 움직이면 안 되기 때문이다.
+ * 조종은 사용자가 화면을 클릭해 교전 상태(engaged)에 들어가야 시작된다. 이때
+ * 포인터 락을 함께 요청하지만, 락이 걸리지 않아도 조종은 가능하다. iframe 등
+ * 포인터 락이 차단되는 환경에서도 게임이 돌아가야 하기 때문이다. 락이 걸린
+ * 경우에는 커서가 화면 밖으로 나가지 않으므로 조작감이 더 낫다.
  */
 export class FlightInput {
   private readonly canvas: HTMLCanvasElement;
@@ -41,6 +43,7 @@ export class FlightInput {
   private accumulatedYaw: number = 0;
   private accumulatedPitch: number = 0;
   private pointerLocked: boolean = false;
+  private engaged: boolean = false;
 
   public constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -52,14 +55,30 @@ export class FlightInput {
     document.addEventListener("mousemove", this.handleMouseMove);
   }
 
-  /** 포인터 락이 걸려 있는지 여부. HUD 오버레이 표시에 사용한다. */
+  /** 조종이 활성화돼 있는지 여부. HUD 오버레이 표시에 사용한다. */
   public get isEngaged(): boolean {
-    return this.pointerLocked;
+    return this.engaged;
   }
 
-  /** 캔버스에 포인터 락을 요청한다. 사용자 제스처 안에서만 호출해야 한다. */
+  /**
+   * 조종을 활성화한다. 사용자 제스처 안에서만 호출해야 한다.
+   * 포인터 락은 함께 시도하되, 실패해도 조종은 그대로 시작된다.
+   */
   public requestControl(): void {
-    void this.canvas.requestPointerLock();
+    this.engaged = true;
+    const lockResult: unknown = this.canvas.requestPointerLock();
+    if (lockResult instanceof Promise) {
+      // 브라우저나 iframe 정책으로 거부될 수 있다. 거부돼도 조종은 유지한다.
+      lockResult.catch(() => undefined);
+    }
+  }
+
+  /** 조종을 해제한다. Esc 로 포인터 락이 풀릴 때도 함께 호출된다. */
+  public releaseControl(): void {
+    this.engaged = false;
+    this.pressedKeys.clear();
+    this.accumulatedYaw = 0;
+    this.accumulatedPitch = 0;
   }
 
   /**
@@ -67,7 +86,7 @@ export class FlightInput {
    * 프레임당 정확히 한 번만 호출해야 한다.
    */
   public sample(): FlightInputState {
-    if (!this.pointerLocked) {
+    if (!this.engaged) {
       this.accumulatedYaw = 0;
       this.accumulatedPitch = 0;
       return IDLE_INPUT;
@@ -100,12 +119,19 @@ export class FlightInput {
   }
 
   private axis(positiveCode: string, negativeCode: string): number {
-    const positive = this.pressedKeys.has(positiveCode) ? 1 : 0;
-    const negative = this.pressedKeys.has(negativeCode) ? 1 : 0;
+    const positive: number = this.pressedKeys.has(positiveCode) ? 1 : 0;
+    const negative: number = this.pressedKeys.has(negativeCode) ? 1 : 0;
     return positive - negative;
   }
 
   private readonly handleKeyDown = (event: KeyboardEvent): void => {
+    if (event.code === "Escape") {
+      this.releaseControl();
+      return;
+    }
+    if (!this.engaged) {
+      return;
+    }
     this.pressedKeys.add(event.code);
     // 스페이스로 페이지가 스크롤되거나 버튼이 눌리는 것을 막는다.
     if (event.code === "Space") {
@@ -118,20 +144,21 @@ export class FlightInput {
   };
 
   private readonly handleBlur = (): void => {
-    this.pressedKeys.clear();
-    this.accumulatedYaw = 0;
-    this.accumulatedPitch = 0;
+    this.releaseControl();
   };
 
   private readonly handlePointerLockChange = (): void => {
-    this.pointerLocked = document.pointerLockElement === this.canvas;
-    if (!this.pointerLocked) {
-      this.pressedKeys.clear();
+    const nowLocked: boolean = document.pointerLockElement === this.canvas;
+    // 락이 걸려 있다가 풀린 경우는 사용자가 Esc 로 빠져나온 것으로 본다.
+    // 애초에 락이 걸리지 않은 환경(iframe 등)에서는 조종을 끊지 않는다.
+    if (this.pointerLocked && !nowLocked) {
+      this.releaseControl();
     }
+    this.pointerLocked = nowLocked;
   };
 
   private readonly handleMouseMove = (event: MouseEvent): void => {
-    if (!this.pointerLocked) {
+    if (!this.engaged) {
       return;
     }
     this.accumulatedYaw += event.movementX;
