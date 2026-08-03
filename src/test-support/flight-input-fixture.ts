@@ -11,6 +11,7 @@ const NEUTRAL_INPUT: FlightInputState = {
   isAssisting: false,
   isFiring: false,
   isTractorActive: false,
+  pressedOnce: new Set<string>(),
 };
 
 /**

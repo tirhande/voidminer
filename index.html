@@ -141,6 +141,94 @@
         color: var(--hud-locked);
       }
 
+      #hud-equipment {
+        left: 24px;
+        top: 24px;
+        line-height: 1.8;
+      }
+
+      #hud-equipment .label {
+        color: var(--hud-dim);
+      }
+
+      #hud-dock-prompt {
+        left: 50%;
+        bottom: 96px;
+        transform: translateX(-50%);
+        text-align: center;
+        letter-spacing: 0.12em;
+      }
+
+      #hud-station {
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        width: min(560px, 82vw);
+        padding: 22px 26px;
+        border: 1px solid rgba(127, 227, 255, 0.28);
+        background: rgba(4, 8, 16, 0.9);
+        display: grid;
+        gap: 16px;
+      }
+
+      #hud-station h2 {
+        font-size: 13px;
+        font-weight: 500;
+        letter-spacing: 0.3em;
+        color: var(--hud-dim);
+      }
+
+      #hud-station .row {
+        display: flex;
+        justify-content: space-between;
+        gap: 20px;
+        font-size: 12px;
+        font-variant-numeric: tabular-nums;
+      }
+
+      #hud-station .row .label {
+        color: var(--hud-dim);
+      }
+
+      #hud-station .action {
+        display: grid;
+        grid-template-columns: 22px 1fr auto;
+        gap: 12px;
+        align-items: baseline;
+        font-size: 12px;
+      }
+
+      #hud-station .action .key {
+        color: var(--hud-cyan);
+      }
+
+      #hud-station .action .detail {
+        color: var(--hud-dim);
+        font-size: 11px;
+        text-align: right;
+      }
+
+      #hud-station .action.unavailable {
+        opacity: 0.38;
+      }
+
+      #hud-station .divider {
+        height: 1px;
+        background: rgba(127, 227, 255, 0.18);
+      }
+
+      #hud-station .message {
+        font-size: 12px;
+        min-height: 1.4em;
+        color: #9df5c4;
+      }
+
+      /* 오버레이의 .hidden 은 페이드용이라 display 를 건드리면 안 된다.
+         패널 계열은 별도 클래스로 완전히 감춘다. */
+      .is-hidden {
+        display: none;
+      }
+
       #overlay {
         position: fixed;
         inset: 0;
@@ -191,6 +279,23 @@
     <div id="hud-cargo" class="hud">
       <div class="title">CARGO <span id="cargo-total">0</span>/<span id="cargo-capacity">0</span></div>
       <div id="cargo-rows"></div>
+    </div>
+
+    <div id="hud-equipment" class="hud">
+      <div><span class="label">LASER</span> <span id="equipment-laser">T1</span></div>
+      <div><span class="label">STATION</span> <span id="equipment-station">--</span></div>
+    </div>
+
+    <div id="hud-dock-prompt" class="hud is-hidden">E — 도킹</div>
+
+    <div id="hud-station" class="hud is-hidden">
+      <h2>STATION</h2>
+      <div id="station-stock"></div>
+      <div class="divider"></div>
+      <div id="station-actions"></div>
+      <div class="divider"></div>
+      <div class="message" id="station-message"></div>
+      <div class="row"><span class="label">E</span><span>도킹 해제</span></div>
     </div>
 
     <div id="hud-readout" class="hud">

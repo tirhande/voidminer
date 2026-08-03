@@ -14,6 +14,10 @@ import { MiningLaser } from "./game/mining-laser";
 import type { AimReport } from "./game/mining-laser";
 import { Ship } from "./game/ship";
 import { Starfield } from "./game/starfield";
+import { Station } from "./game/station";
+import { StationConsole } from "./game/station-console";
+import type { StationView } from "./game/station-console";
+import { StationStock } from "./game/station-stock";
 
 /** 렌더 대상 캔버스를 가져온다. */
 function requireCanvas(id: string): HTMLCanvasElement {
@@ -83,8 +87,13 @@ function bootstrap(): void {
   const miningLaser: MiningLaser = new MiningLaser();
   scene.add(miningLaser.object3D);
 
+  const station: Station = new Station(ship.position);
+  scene.add(station.object3D);
+
   const equipment: ShipEquipment = new ShipEquipment();
   const cargo: Cargo = new Cargo();
+  const stationStock: StationStock = new StationStock();
+  const stationConsole: StationConsole = new StationConsole();
 
   const chaseCamera: ChaseCamera = new ChaseCamera(
     ship,
@@ -128,9 +137,21 @@ function bootstrap(): void {
     asteroidField.removeDepleted();
     debrisField.update(deltaSeconds, ship.position, flightInput.isTractorActive, cargo);
 
+    station.update(deltaSeconds);
+    const stationView: StationView = stationConsole.update(
+      flightInput,
+      ship.position,
+      station,
+      cargo,
+      stationStock,
+      equipment,
+    );
+
     hud.updateFlight(ship.speed, flightInput, input.isEngaged);
     hud.updateAim(aimReport);
     hud.updateCargo(cargo);
+    hud.updateEquipment(equipment, station.distanceTo(ship.position));
+    hud.updateStation(stationView);
 
     renderer.render(scene, chaseCamera.camera);
   });

@@ -1,7 +1,9 @@
 import type { Cargo, CargoEntry } from "./cargo";
+import type { ShipEquipment } from "./equipment";
 import type { FlightInputState } from "./flight-input";
 import { resourceColor, resourceDisplayName } from "./minerals";
 import type { AimReport } from "./mining-laser";
+import type { StationView } from "./station-console";
 
 /** HUD 가 참조하는 DOM 요소 묶음. */
 type HudElements = {
@@ -17,6 +19,13 @@ type HudElements = {
   readonly cargoTotal: HTMLElement;
   readonly cargoCapacity: HTMLElement;
   readonly cargoRows: HTMLElement;
+  readonly equipmentLaser: HTMLElement;
+  readonly equipmentStation: HTMLElement;
+  readonly dockPrompt: HTMLElement;
+  readonly stationPanel: HTMLElement;
+  readonly stationStock: HTMLElement;
+  readonly stationActions: HTMLElement;
+  readonly stationMessage: HTMLElement;
 };
 
 /**
@@ -45,6 +54,7 @@ export class Hud {
   private lastEngaged: boolean | null = null;
   private lastAimSignature: string = "";
   private lastCargoSignature: string = "";
+  private lastStationSignature: string = "";
 
   public constructor() {
     this.elements = {
@@ -60,6 +70,13 @@ export class Hud {
       cargoTotal: requireElement("cargo-total"),
       cargoCapacity: requireElement("cargo-capacity"),
       cargoRows: requireElement("cargo-rows"),
+      equipmentLaser: requireElement("equipment-laser"),
+      equipmentStation: requireElement("equipment-station"),
+      dockPrompt: requireElement("hud-dock-prompt"),
+      stationPanel: requireElement("hud-station"),
+      stationStock: requireElement("station-stock"),
+      stationActions: requireElement("station-actions"),
+      stationMessage: requireElement("station-message"),
     };
 
     this.elements.cargoCapacity.textContent = "0";
@@ -160,6 +177,80 @@ export class Hud {
         return row;
       }),
     );
+  }
+
+  /** 장비 상태 표시를 갱신한다. */
+  public updateEquipment(equipment: ShipEquipment, stationDistance: number): void {
+    const laserText: string = `T${equipment.laserTier} +${equipment.laserUpgrade}`;
+    if (this.elements.equipmentLaser.textContent !== laserText) {
+      this.elements.equipmentLaser.textContent = laserText;
+    }
+
+    const distanceText: string = `${Math.round(stationDistance)}m`;
+    if (this.elements.equipmentStation.textContent !== distanceText) {
+      this.elements.equipmentStation.textContent = distanceText;
+    }
+  }
+
+  /** 거점 화면을 갱신한다. */
+  public updateStation(view: StationView): void {
+    this.elements.dockPrompt.classList.toggle("is-hidden", !view.isDockPromptVisible);
+    this.elements.stationPanel.classList.toggle("is-hidden", !view.isDocked);
+
+    if (!view.isDocked) {
+      this.lastStationSignature = "";
+      return;
+    }
+
+    const signature: string = [
+      view.stock.map((line) => `${line.label}=${line.value}`).join("|"),
+      view.actions.map((action) => `${action.key}:${action.detail}:${action.isAvailable}`).join("|"),
+      view.message,
+    ].join("#");
+    if (signature === this.lastStationSignature) {
+      return;
+    }
+    this.lastStationSignature = signature;
+
+    this.elements.stationStock.replaceChildren(
+      ...view.stock.map((line) => {
+        const row: HTMLDivElement = document.createElement("div");
+        row.className = "row";
+
+        const label: HTMLSpanElement = document.createElement("span");
+        label.className = "label";
+        label.textContent = line.label;
+
+        const value: HTMLSpanElement = document.createElement("span");
+        value.textContent = line.value;
+
+        row.append(label, value);
+        return row;
+      }),
+    );
+
+    this.elements.stationActions.replaceChildren(
+      ...view.actions.map((action) => {
+        const row: HTMLDivElement = document.createElement("div");
+        row.className = action.isAvailable ? "action" : "action unavailable";
+
+        const key: HTMLSpanElement = document.createElement("span");
+        key.className = "key";
+        key.textContent = action.key;
+
+        const label: HTMLSpanElement = document.createElement("span");
+        label.textContent = action.label;
+
+        const detail: HTMLSpanElement = document.createElement("span");
+        detail.className = "detail";
+        detail.textContent = action.detail;
+
+        row.append(key, label, detail);
+        return row;
+      }),
+    );
+
+    this.elements.stationMessage.textContent = view.message;
   }
 }
 

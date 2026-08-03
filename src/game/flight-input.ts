@@ -20,7 +20,16 @@ export type FlightInputState = {
   readonly isFiring: boolean;
   /** 견인빔 사용 여부 (마우스 오른쪽) */
   readonly isTractorActive: boolean;
+  /**
+   * 이번 프레임에 새로 눌린 키 코드.
+   *
+   * 도킹이나 거점 메뉴처럼 누르고 있는 동안이 아니라 누르는 순간에 한 번만
+   * 반응해야 하는 조작에 쓴다.
+   */
+  readonly pressedOnce: ReadonlySet<string>;
 };
+
+const NO_PRESSED_KEYS: ReadonlySet<string> = new Set<string>();
 
 const IDLE_INPUT: FlightInputState = {
   thrust: 0,
@@ -33,6 +42,7 @@ const IDLE_INPUT: FlightInputState = {
   isAssisting: false,
   isFiring: false,
   isTractorActive: false,
+  pressedOnce: NO_PRESSED_KEYS,
 };
 
 /** 마우스 버튼 번호. */
@@ -52,6 +62,7 @@ const MOUSE_BUTTON = {
 export class FlightInput {
   private readonly canvas: HTMLCanvasElement;
   private readonly pressedKeys: Set<string> = new Set();
+  private readonly pressedOnceKeys: Set<string> = new Set();
   private accumulatedYaw: number = 0;
   private accumulatedPitch: number = 0;
   private pointerLocked: boolean = false;
@@ -95,6 +106,7 @@ export class FlightInput {
   public releaseControl(): void {
     this.engaged = false;
     this.pressedKeys.clear();
+    this.pressedOnceKeys.clear();
     this.accumulatedYaw = 0;
     this.accumulatedPitch = 0;
     this.firing = false;
@@ -123,10 +135,12 @@ export class FlightInput {
       isAssisting: this.pressedKeys.has("Space"),
       isFiring: this.firing,
       isTractorActive: this.tractorActive,
+      pressedOnce: new Set(this.pressedOnceKeys),
     };
 
     this.accumulatedYaw = 0;
     this.accumulatedPitch = 0;
+    this.pressedOnceKeys.clear();
 
     return state;
   }
@@ -156,6 +170,10 @@ export class FlightInput {
     }
     if (!this.engaged) {
       return;
+    }
+    // 브라우저 키 반복으로 같은 키가 계속 들어오므로, 처음 눌릴 때만 기록한다.
+    if (!this.pressedKeys.has(event.code)) {
+      this.pressedOnceKeys.add(event.code);
     }
     this.pressedKeys.add(event.code);
     // 스페이스로 페이지가 스크롤되거나 버튼이 눌리는 것을 막는다.

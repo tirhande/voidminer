@@ -66,4 +66,10 @@ export class Cargo {
     this.totalAmount += stored;
     return stored;
   }
+
+  /** 화물칸을 비운다. 거점에 하역할 때 쓴다. */
+  public clear(): void {
+    this.amounts.clear();
+    this.totalAmount = 0;
+  }
 }
