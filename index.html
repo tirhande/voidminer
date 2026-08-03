@@ -8,6 +8,7 @@
       :root {
         --hud-cyan: #7fe3ff;
         --hud-dim: rgba(127, 227, 255, 0.55);
+        --hud-locked: #ff6b6b;
       }
 
       * {
@@ -80,6 +81,66 @@
         background: var(--hud-cyan);
       }
 
+      /* 조준 대상 표시는 화면 구석이 아니라 조준점 바로 아래에 둔다.
+         시선이 이미 거기 있으므로 눈을 옮기지 않아도 읽힌다. */
+      #hud-aim {
+        left: 50%;
+        top: 50%;
+        transform: translateX(-50%);
+        margin-top: 24px;
+        text-align: center;
+        line-height: 1.6;
+        white-space: nowrap;
+      }
+
+      #hud-aim .mineral {
+        font-size: 14px;
+        letter-spacing: 0.14em;
+      }
+
+      #hud-aim .remaining {
+        font-size: 11px;
+        color: var(--hud-dim);
+      }
+
+      #hud-aim .requirement {
+        font-size: 11px;
+        color: var(--hud-locked);
+        letter-spacing: 0.06em;
+      }
+
+      #hud-aim.locked .mineral {
+        color: var(--hud-locked);
+      }
+
+      #hud-cargo {
+        right: 24px;
+        top: 24px;
+        text-align: right;
+        line-height: 1.8;
+        min-width: 150px;
+      }
+
+      #hud-cargo .title {
+        color: var(--hud-dim);
+        letter-spacing: 0.16em;
+      }
+
+      #hud-cargo .row {
+        display: flex;
+        justify-content: space-between;
+        gap: 18px;
+        font-variant-numeric: tabular-nums;
+      }
+
+      #hud-cargo .row .name {
+        color: var(--hud-dim);
+      }
+
+      #hud-cargo.full .title {
+        color: var(--hud-locked);
+      }
+
       #overlay {
         position: fixed;
         inset: 0;
@@ -121,6 +182,17 @@
 
     <div id="hud-reticle" class="hud"></div>
 
+    <div id="hud-aim" class="hud">
+      <div class="mineral" id="aim-mineral"></div>
+      <div class="remaining" id="aim-remaining"></div>
+      <div class="requirement" id="aim-requirement"></div>
+    </div>
+
+    <div id="hud-cargo" class="hud">
+      <div class="title">CARGO <span id="cargo-total">0</span>/<span id="cargo-capacity">0</span></div>
+      <div id="cargo-rows"></div>
+    </div>
+
     <div id="hud-readout" class="hud">
       <div><span class="label">SPD</span> <span id="readout-speed">0</span> m/s</div>
       <div><span class="label">THR</span> <span id="readout-throttle">IDLE</span></div>
@@ -128,9 +200,9 @@
     </div>
 
     <div id="hud-controls" class="hud">
-      <div>W/S THRUST &nbsp; A/D STRAFE &nbsp; R/F LIFT</div>
-      <div>Q/E ROLL &nbsp; MOUSE AIM &nbsp; SHIFT BOOST</div>
-      <div>SPACE INERTIAL ASSIST &nbsp; ESC RELEASE</div>
+      <div>W/S THRUST &nbsp; A/D STRAFE &nbsp; R/F LIFT &nbsp; Q/E ROLL</div>
+      <div>LMB MINING LASER &nbsp; RMB TRACTOR BEAM</div>
+      <div>SHIFT BOOST &nbsp; SPACE INERTIAL ASSIST &nbsp; ESC RELEASE</div>
     </div>
 
     <div id="overlay">

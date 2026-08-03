@@ -9,6 +9,8 @@ const NEUTRAL_INPUT: FlightInputState = {
   pitchDelta: 0,
   isBoosting: false,
   isAssisting: false,
+  isFiring: false,
+  isTractorActive: false,
 };
 
 /**

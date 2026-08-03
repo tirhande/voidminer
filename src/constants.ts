@@ -76,5 +76,72 @@ export const DUST_FIELD = {
   PointSize: 0.5,
 } as const;
 
+/**
+ * 소행성 필드 설정.
+ *
+ * 본 프로젝트의 GDD 는 손으로 디자인된 세계를 [확정]으로 두고 있으나, 이 웹
+ * 프로토는 배치를 절차 생성으로 대신한다. 프로토 한정 타협이다.
+ */
+export const ASTEROID_FIELD = {
+  /** 소행성 개수 */
+  Count: 64,
+  /** 소행성이 배치되는 정육면체의 한 변 (m) */
+  FieldSize: 900,
+  /** 함선 시작 지점 주변에 소행성을 두지 않는 반경 (m) */
+  SpawnClearance: 70,
+  /** 절차 생성 시드. 고정해 두면 매번 같은 필드가 나온다 */
+  Seed: 20260804,
+} as const;
+
+/** 채굴 레이저 설정. */
+export const MINING_LASER = {
+  /** 사거리 (m) */
+  Range: 240,
+  /** T1 기본 채굴 속도 (광물 단위/s) */
+  BaseYieldPerSecond: 7,
+  /**
+   * 티어가 하나 오를 때 더해지는 채굴 속도.
+   *
+   * GDD 07 의 "업그레이드 최대치 < 다음 티어 기본치"를 지키려면 이 값이
+   * `MAX_UPGRADE_LEVEL × YieldPerUpgrade` 보다 커야 한다. 이 순서가 뒤집히면
+   * 하위 티어를 끝까지 강화하는 쪽이 이득이라 상위 티어를 만들 이유가 없어진다.
+   */
+  YieldPerTier: 9,
+  /** 업그레이드 한 단계당 더해지는 채굴 속도 */
+  YieldPerUpgrade: 1.4,
+  /** 파편 하나가 담는 광물 양. 이만큼 캐면 파편이 하나 떨어진다 */
+  MineralPerDebris: 5,
+} as const;
+
+/** 견인빔 설정. */
+export const TRACTOR_BEAM = {
+  /** 흡인 반경 (m) */
+  Range: 90,
+  /** 파편을 함선 쪽으로 당기는 가속도 (m/s^2) */
+  PullAcceleration: 60,
+  /** 파편 속도 상한 (m/s) */
+  MaxPullSpeed: 90,
+  /** 이 거리 안에 들어오면 적재된다 (m) */
+  CollectDistance: 6,
+} as const;
+
+/** 파편 설정. */
+export const DEBRIS = {
+  /** 소행성에서 튀어나오는 초기 속도 (m/s) */
+  EjectSpeed: 9,
+  /** 파편 반지름 (m) */
+  Radius: 0.8,
+  /** 회수되지 않은 파편이 사라지기까지의 시간 (s) */
+  LifetimeSeconds: 90,
+  /** 동시에 존재할 수 있는 파편 수 상한 */
+  MaxCount: 220,
+} as const;
+
+/** 화물칸 설정. */
+export const CARGO = {
+  /** 적재 상한 (광물 단위). 차면 더 담기지 않는다 */
+  Capacity: 260,
+} as const;
+
 /** 한 프레임의 최대 델타 타임 (s). 탭 전환 후 물리가 튀는 것을 막는다. */
 export const MAX_DELTA_SECONDS = 0.05;

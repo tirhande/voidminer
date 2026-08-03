@@ -16,6 +16,10 @@ export type FlightInputState = {
   readonly isBoosting: boolean;
   /** 관성 제동 사용 여부 */
   readonly isAssisting: boolean;
+  /** 채굴 레이저 발사 여부 (마우스 왼쪽) */
+  readonly isFiring: boolean;
+  /** 견인빔 사용 여부 (마우스 오른쪽) */
+  readonly isTractorActive: boolean;
 };
 
 const IDLE_INPUT: FlightInputState = {
@@ -27,7 +31,15 @@ const IDLE_INPUT: FlightInputState = {
   pitchDelta: 0,
   isBoosting: false,
   isAssisting: false,
+  isFiring: false,
+  isTractorActive: false,
 };
+
+/** 마우스 버튼 번호. */
+const MOUSE_BUTTON = {
+  Left: 0,
+  Right: 2,
+} as const;
 
 /**
  * 키보드와 마우스로 조종 입력을 수집한다.
@@ -44,6 +56,8 @@ export class FlightInput {
   private accumulatedPitch: number = 0;
   private pointerLocked: boolean = false;
   private engaged: boolean = false;
+  private firing: boolean = false;
+  private tractorActive: boolean = false;
 
   public constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -53,6 +67,10 @@ export class FlightInput {
     window.addEventListener("blur", this.handleBlur);
     document.addEventListener("pointerlockchange", this.handlePointerLockChange);
     document.addEventListener("mousemove", this.handleMouseMove);
+    document.addEventListener("mousedown", this.handleMouseDown);
+    document.addEventListener("mouseup", this.handleMouseUp);
+    // 오른쪽 버튼을 견인빔에 쓰므로 컨텍스트 메뉴가 뜨면 안 된다.
+    canvas.addEventListener("contextmenu", this.handleContextMenu);
   }
 
   /** 조종이 활성화돼 있는지 여부. HUD 오버레이 표시에 사용한다. */
@@ -79,6 +97,8 @@ export class FlightInput {
     this.pressedKeys.clear();
     this.accumulatedYaw = 0;
     this.accumulatedPitch = 0;
+    this.firing = false;
+    this.tractorActive = false;
   }
 
   /**
@@ -101,6 +121,8 @@ export class FlightInput {
       pitchDelta: this.accumulatedPitch,
       isBoosting: this.pressedKeys.has("ShiftLeft") || this.pressedKeys.has("ShiftRight"),
       isAssisting: this.pressedKeys.has("Space"),
+      isFiring: this.firing,
+      isTractorActive: this.tractorActive,
     };
 
     this.accumulatedYaw = 0;
@@ -116,6 +138,9 @@ export class FlightInput {
     window.removeEventListener("blur", this.handleBlur);
     document.removeEventListener("pointerlockchange", this.handlePointerLockChange);
     document.removeEventListener("mousemove", this.handleMouseMove);
+    document.removeEventListener("mousedown", this.handleMouseDown);
+    document.removeEventListener("mouseup", this.handleMouseUp);
+    this.canvas.removeEventListener("contextmenu", this.handleContextMenu);
   }
 
   private axis(positiveCode: string, negativeCode: string): number {
@@ -163,5 +188,29 @@ export class FlightInput {
     }
     this.accumulatedYaw += event.movementX;
     this.accumulatedPitch += event.movementY;
+  };
+
+  private readonly handleMouseDown = (event: MouseEvent): void => {
+    if (!this.engaged) {
+      return;
+    }
+    if (event.button === MOUSE_BUTTON.Left) {
+      this.firing = true;
+    } else if (event.button === MOUSE_BUTTON.Right) {
+      this.tractorActive = true;
+      event.preventDefault();
+    }
+  };
+
+  private readonly handleMouseUp = (event: MouseEvent): void => {
+    if (event.button === MOUSE_BUTTON.Left) {
+      this.firing = false;
+    } else if (event.button === MOUSE_BUTTON.Right) {
+      this.tractorActive = false;
+    }
+  };
+
+  private readonly handleContextMenu = (event: MouseEvent): void => {
+    event.preventDefault();
   };
 }

@@ -1,11 +1,17 @@
 import * as THREE from "three";
 
 import { MAX_DELTA_SECONDS } from "./constants";
+import { AsteroidField } from "./game/asteroid-field";
+import { Cargo } from "./game/cargo";
 import { ChaseCamera } from "./game/chase-camera";
+import { DebrisField } from "./game/debris-field";
 import { DustField } from "./game/dust-field";
+import { ShipEquipment } from "./game/equipment";
 import { FlightInput } from "./game/flight-input";
 import type { FlightInputState } from "./game/flight-input";
 import { Hud } from "./game/hud";
+import { MiningLaser } from "./game/mining-laser";
+import type { AimReport } from "./game/mining-laser";
 import { Ship } from "./game/ship";
 import { Starfield } from "./game/starfield";
 
@@ -68,6 +74,18 @@ function bootstrap(): void {
   const dustField: DustField = new DustField(ship.position);
   scene.add(dustField.object3D);
 
+  const asteroidField: AsteroidField = new AsteroidField(ship.position);
+  scene.add(asteroidField.object3D);
+
+  const debrisField: DebrisField = new DebrisField();
+  scene.add(debrisField.object3D);
+
+  const miningLaser: MiningLaser = new MiningLaser();
+  scene.add(miningLaser.object3D);
+
+  const equipment: ShipEquipment = new ShipEquipment();
+  const cargo: Cargo = new Cargo();
+
   const chaseCamera: ChaseCamera = new ChaseCamera(
     ship,
     window.innerWidth / window.innerHeight,
@@ -95,7 +113,24 @@ function bootstrap(): void {
     chaseCamera.update(deltaSeconds);
     starfield.follow(ship.position);
     dustField.wrapAround(ship.position);
-    hud.update(ship.speed, flightInput, input.isEngaged);
+
+    // 조준은 카메라 기준으로 판정해야 화면 중앙 조준점과 명중 지점이 일치한다.
+    const aimReport: AimReport = miningLaser.update(
+      deltaSeconds,
+      chaseCamera.camera,
+      ship.position,
+      ship.quaternion,
+      flightInput.isFiring,
+      equipment,
+      asteroidField,
+      debrisField,
+    );
+    asteroidField.removeDepleted();
+    debrisField.update(deltaSeconds, ship.position, flightInput.isTractorActive, cargo);
+
+    hud.updateFlight(ship.speed, flightInput, input.isEngaged);
+    hud.updateAim(aimReport);
+    hud.updateCargo(cargo);
 
     renderer.render(scene, chaseCamera.camera);
   });
