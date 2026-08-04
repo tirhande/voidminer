@@ -224,7 +224,13 @@
       }
 
       /* 오버레이의 .hidden 은 페이드용이라 display 를 건드리면 안 된다.
-         패널 계열은 별도 클래스로 완전히 감춘다. */
+         패널 계열은 별도 클래스로 완전히 감춘다.
+
+         id 로 display 를 지정한 요소는 클래스 규칙만으로 덮이지 않는다.
+         우선순위가 id 100 대 클래스 10 이라 감추는 쪽이 진다. 그래서 감추는
+         규칙도 id 를 함께 적어 우선순위를 맞춘다. */
+      #hud-station.is-hidden,
+      #hud-dock-prompt.is-hidden,
       .is-hidden {
         display: none;
       }
