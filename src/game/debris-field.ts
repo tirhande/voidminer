@@ -14,6 +14,7 @@ type DebrisItem = {
 };
 
 const scratchDirection: THREE.Vector3 = new THREE.Vector3();
+const scratchDesired: THREE.Vector3 = new THREE.Vector3();
 
 /**
  * 파편 무리와 견인빔 회수를 담당한다.
@@ -84,6 +85,7 @@ export class DebrisField {
    *
    * @param deltaSeconds 프레임 델타 타임 (s)
    * @param shipPosition 함선 위치
+   * @param shipVelocity 함선 속도. 끌어당길 목표 속도의 기준이 된다
    * @param isTractorActive 견인빔 사용 여부
    * @param cargo 회수한 자원을 담을 화물칸
    * @returns 이번 프레임에 회수된 자원 목록
@@ -91,6 +93,7 @@ export class DebrisField {
   public update(
     deltaSeconds: number,
     shipPosition: THREE.Vector3,
+    shipVelocity: THREE.Vector3,
     isTractorActive: boolean,
     cargo: Cargo,
   ): ResourceId[] {
@@ -106,13 +109,21 @@ export class DebrisField {
 
       if (isTractorActive && distance < TRACTOR_BEAM.Range && distance > 1e-4) {
         scratchDirection.divideScalar(distance);
-        item.velocity.addScaledVector(
-          scratchDirection,
-          TRACTOR_BEAM.PullAcceleration * deltaSeconds,
+
+        // 목표 속도 = 함선 속도 + 접근 속도. 접근 속도는 거리에 비례하므로
+        // 가까워질수록 느려져 지나치지 않고, 함선 속도가 더해져 있으므로
+        // 움직이는 함선을 그대로 따라온다.
+        const approachSpeed: number = Math.min(
+          distance * TRACTOR_BEAM.ApproachRate,
+          TRACTOR_BEAM.MaxPullSpeed,
         );
-        if (item.velocity.length() > TRACTOR_BEAM.MaxPullSpeed) {
-          item.velocity.setLength(TRACTOR_BEAM.MaxPullSpeed);
-        }
+        scratchDesired
+          .copy(shipVelocity)
+          .addScaledVector(scratchDirection, approachSpeed);
+
+        const response: number = 1 - Math.exp(-TRACTOR_BEAM.ResponseRate * deltaSeconds);
+        item.velocity.lerp(scratchDesired, response);
+
         this.pulledPositions.push(item.mesh.position);
       }
 

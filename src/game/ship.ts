@@ -23,7 +23,7 @@ const scratchQuaternion: THREE.Quaternion = new THREE.Quaternion();
 export class Ship {
   public readonly object3D: THREE.Group;
 
-  private readonly velocity: THREE.Vector3 = new THREE.Vector3();
+  private readonly velocityVector: THREE.Vector3 = new THREE.Vector3();
   private readonly angularVelocity: THREE.Vector3 = new THREE.Vector3();
   private readonly engineGlow: THREE.Mesh<THREE.SphereGeometry, THREE.MeshBasicMaterial>;
   private readonly engineLight: THREE.PointLight;
@@ -92,7 +92,17 @@ export class Ship {
 
   /** 현재 속력 (m/s). */
   public get speed(): number {
-    return this.velocity.length();
+    return this.velocityVector.length();
+  }
+
+  /**
+   * 현재 속도 벡터 (m/s).
+   *
+   * 견인빔이 참조한다. 파편을 끌어당길 때 함선의 속도를 기준으로 삼아야
+   * 움직이는 함선을 따라올 수 있다.
+   */
+  public get velocity(): THREE.Vector3 {
+    return this.velocityVector;
   }
 
   /** 월드 좌표 위치. 카메라와 스타필드가 참조한다. */
@@ -149,16 +159,16 @@ export class Ship {
     scratchVector.addScaledVector(LOCAL_UP, input.lift * SHIP_TUNING.LiftThrust);
     scratchVector.applyQuaternion(this.object3D.quaternion).multiplyScalar(boost);
 
-    this.velocity.addScaledVector(scratchVector, deltaSeconds);
+    this.velocityVector.addScaledVector(scratchVector, deltaSeconds);
 
     if (input.isAssisting) {
       const assistDecay: number = Math.exp(-SHIP_TUNING.AssistDamping * deltaSeconds);
-      this.velocity.multiplyScalar(assistDecay);
+      this.velocityVector.multiplyScalar(assistDecay);
     }
 
     const speedLimit: number = SHIP_TUNING.MaxSpeed * boost;
-    if (this.velocity.length() > speedLimit) {
-      this.velocity.setLength(speedLimit);
+    if (this.velocityVector.length() > speedLimit) {
+      this.velocityVector.setLength(speedLimit);
     }
 
     this.object3D.position.addScaledVector(this.velocity, deltaSeconds);

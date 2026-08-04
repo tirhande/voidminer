@@ -156,7 +156,13 @@ function bootstrap(): void {
       debrisField,
     );
     asteroidField.update(deltaSeconds, ship.position);
-    debrisField.update(deltaSeconds, ship.position, flightInput.isTractorActive, cargo);
+    debrisField.update(
+      deltaSeconds,
+      ship.position,
+      ship.velocity,
+      flightInput.isTractorActive,
+      cargo,
+    );
     tractorBeam.update(
       deltaSeconds,
       flightInput.isTractorActive,
