@@ -1,6 +1,5 @@
 import * as THREE from "three";
 
-import { TRACTOR_BEAM } from "../constants";
 import { PALETTE } from "../palette";
 
 /** 한 번에 그릴 수 있는 견인 줄기의 최대 수. */
@@ -24,7 +23,8 @@ export class TractorBeam {
   private readonly strands: THREE.LineSegments;
   private readonly positions: Float32Array;
   private readonly positionAttribute: THREE.BufferAttribute;
-  private readonly rangeRing: THREE.Mesh;
+  private readonly emitter: THREE.Mesh<THREE.SphereGeometry, THREE.MeshBasicMaterial>;
+  private readonly emitterLight: THREE.PointLight;
   private pulseSeconds: number = 0;
 
   public constructor() {
@@ -51,18 +51,25 @@ export class TractorBeam {
     this.strands.frustumCulled = false;
     this.object3D.add(this.strands);
 
-    // 사거리를 알려주는 고리. 빔을 켠 동안에만 보인다.
-    this.rangeRing = new THREE.Mesh(
-      new THREE.TorusGeometry(TRACTOR_BEAM.Range, 0.35, 6, 48),
+    // 방출구 발광. 빔을 켠 동안 함선 아래에서 맥동한다.
+    //
+    // 한때 사거리를 알려주는 90m 고리를 그렸다. 그 고리는 월드 수평면에 누워
+    // 있고 카메라도 거의 같은 평면에 있어서, 옆에서 본 고리가 화면을 가로지르는
+    // 선 하나로 보였다. 블룸까지 얹히면 흰 줄이 된다. 사거리는 HUD 의 붙잡은
+    // 개수로 알리고, 여기서는 켜졌다는 것만 전한다.
+    this.emitter = new THREE.Mesh(
+      new THREE.SphereGeometry(0.5, 12, 12),
       new THREE.MeshBasicMaterial({
         color: PALETTE.Signal,
         transparent: true,
-        opacity: 0.16,
+        opacity: 0.85,
         depthWrite: false,
       }),
     );
-    this.rangeRing.rotation.x = Math.PI / 2;
-    this.object3D.add(this.rangeRing);
+    this.object3D.add(this.emitter);
+
+    this.emitterLight = new THREE.PointLight(PALETTE.Signal, 0, 40, 2);
+    this.object3D.add(this.emitterLight);
 
     this.setVisible(false);
   }
@@ -91,12 +98,15 @@ export class TractorBeam {
     this.pulseSeconds += deltaSeconds;
     this.setVisible(true);
 
-    this.rangeRing.position.copy(shipPosition);
-    // 고리가 맥동하면 켜져 있다는 것이 파편이 없어도 전달된다.
-    const pulse: number = 0.12 + (Math.sin(this.pulseSeconds * 3) + 1) * 0.05;
-    (this.rangeRing.material as THREE.MeshBasicMaterial).opacity = pulse;
-
     scratchEmitter.copy(EMITTER_OFFSET).applyQuaternion(shipQuaternion).add(shipPosition);
+
+    // 방출구가 맥동하면 파편이 하나도 없어도 켜진 것이 전달된다.
+    const pulse: number = 1 + Math.sin(this.pulseSeconds * 6) * 0.3;
+    this.emitter.position.copy(scratchEmitter);
+    this.emitter.scale.setScalar(pulse);
+    this.emitter.material.opacity = 0.5 + (pulse - 1) * 0.6;
+    this.emitterLight.position.copy(scratchEmitter);
+    this.emitterLight.intensity = 10 * pulse;
 
     const strandCount: number = Math.min(pulledDebris.length, MAX_STRANDS);
     for (let index = 0; index < strandCount; index += 1) {
