@@ -27,6 +27,8 @@ export class DebrisField {
   private readonly geometry: THREE.IcosahedronGeometry;
   private readonly materials: Map<ResourceId, THREE.MeshStandardMaterial> = new Map();
   private readonly items: DebrisItem[] = [];
+  /** 이번 프레임에 견인빔이 실제로 끌어당긴 파편의 위치. 빔 표시에 쓴다 */
+  private readonly pulledPositions: THREE.Vector3[] = [];
 
   public constructor() {
     this.object3D = new THREE.Group();
@@ -37,6 +39,11 @@ export class DebrisField {
   /** 현재 떠 있는 파편 수. */
   public get activeCount(): number {
     return this.items.length;
+  }
+
+  /** 이번 프레임에 견인빔이 붙잡은 파편의 위치. */
+  public get pulledDebris(): ReadonlyArray<THREE.Vector3> {
+    return this.pulledPositions;
   }
 
   /**
@@ -88,6 +95,7 @@ export class DebrisField {
     cargo: Cargo,
   ): ResourceId[] {
     const collected: ResourceId[] = [];
+    this.pulledPositions.length = 0;
 
     for (let index = this.items.length - 1; index >= 0; index -= 1) {
       const item: DebrisItem = this.items[index];
@@ -105,6 +113,7 @@ export class DebrisField {
         if (item.velocity.length() > TRACTOR_BEAM.MaxPullSpeed) {
           item.velocity.setLength(TRACTOR_BEAM.MaxPullSpeed);
         }
+        this.pulledPositions.push(item.mesh.position);
       }
 
       item.mesh.position.addScaledVector(item.velocity, deltaSeconds);

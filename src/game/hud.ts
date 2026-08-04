@@ -10,6 +10,7 @@ type HudElements = {
   readonly speed: HTMLElement;
   readonly throttle: HTMLElement;
   readonly assist: HTMLElement;
+  readonly tractor: HTMLElement;
   readonly overlay: HTMLElement;
   readonly aimContainer: HTMLElement;
   readonly aimMineral: HTMLElement;
@@ -51,6 +52,7 @@ export class Hud {
   private lastSpeedText: string = "";
   private lastThrottleText: string = "";
   private lastAssistText: string = "";
+  private lastTractorText: string = "";
   private lastEngaged: boolean | null = null;
   private lastAimSignature: string = "";
   private lastCargoSignature: string = "";
@@ -61,6 +63,7 @@ export class Hud {
       speed: requireElement("readout-speed"),
       throttle: requireElement("readout-throttle"),
       assist: requireElement("readout-assist"),
+      tractor: requireElement("readout-tractor"),
       overlay: requireElement("overlay"),
       aimContainer: requireElement("hud-aim"),
       aimMineral: requireElement("aim-mineral"),
@@ -94,7 +97,12 @@ export class Hud {
    * @param input 이번 프레임의 조종 입력
    * @param isEngaged 조종이 활성화돼 있는지 여부
    */
-  public updateFlight(speed: number, input: FlightInputState, isEngaged: boolean): void {
+  public updateFlight(
+    speed: number,
+    input: FlightInputState,
+    isEngaged: boolean,
+    pulledDebrisCount: number,
+  ): void {
     const speedText: string = speed.toFixed(0).padStart(3, "0");
     if (speedText !== this.lastSpeedText) {
       this.elements.speed.textContent = speedText;
@@ -111,6 +119,16 @@ export class Hud {
     if (assistText !== this.lastAssistText) {
       this.elements.assist.textContent = assistText;
       this.lastAssistText = assistText;
+    }
+
+    // 몇 개를 붙잡았는지까지 보여준다. 0이면 사거리 밖이라는 뜻이므로
+    // 조작이 안 먹는 것과 구분된다.
+    const tractorText: string = input.isTractorActive
+      ? `ON ${pulledDebrisCount}`
+      : "OFF";
+    if (tractorText !== this.lastTractorText) {
+      this.elements.tractor.textContent = tractorText;
+      this.lastTractorText = tractorText;
     }
 
     if (isEngaged !== this.lastEngaged) {

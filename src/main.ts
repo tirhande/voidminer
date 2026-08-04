@@ -18,6 +18,7 @@ import { Station } from "./game/station";
 import { StationConsole } from "./game/station-console";
 import type { StationView } from "./game/station-console";
 import { StationStock } from "./game/station-stock";
+import { TractorBeam } from "./game/tractor-beam";
 
 /** 렌더 대상 캔버스를 가져온다. */
 function requireCanvas(id: string): HTMLCanvasElement {
@@ -87,6 +88,9 @@ function bootstrap(): void {
   const miningLaser: MiningLaser = new MiningLaser();
   scene.add(miningLaser.object3D);
 
+  const tractorBeam: TractorBeam = new TractorBeam();
+  scene.add(tractorBeam.object3D);
+
   const station: Station = new Station(ship.position);
   scene.add(station.object3D);
 
@@ -136,6 +140,13 @@ function bootstrap(): void {
     );
     asteroidField.update(deltaSeconds, ship.position);
     debrisField.update(deltaSeconds, ship.position, flightInput.isTractorActive, cargo);
+    tractorBeam.update(
+      deltaSeconds,
+      flightInput.isTractorActive,
+      ship.position,
+      ship.quaternion,
+      debrisField.pulledDebris,
+    );
 
     station.update(deltaSeconds);
     const stationView: StationView = stationConsole.update(
@@ -147,7 +158,12 @@ function bootstrap(): void {
       equipment,
     );
 
-    hud.updateFlight(ship.speed, flightInput, input.isEngaged);
+    hud.updateFlight(
+      ship.speed,
+      flightInput,
+      input.isEngaged,
+      debrisField.pulledDebris.length,
+    );
     hud.updateAim(aimReport);
     hud.updateCargo(cargo);
     hud.updateEquipment(equipment, station.distanceTo(ship.position));

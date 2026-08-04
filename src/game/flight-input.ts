@@ -81,7 +81,11 @@ export class FlightInput {
     document.addEventListener("mousedown", this.handleMouseDown);
     document.addEventListener("mouseup", this.handleMouseUp);
     // 오른쪽 버튼을 견인빔에 쓰므로 컨텍스트 메뉴가 뜨면 안 된다.
-    canvas.addEventListener("contextmenu", this.handleContextMenu);
+    //
+    // 캔버스에만 걸면 막지 못한다. 포인터 락 상태에서는 이벤트 대상이 달라질
+    // 수 있고, 메뉴가 한 번이라도 열리면 브라우저가 포인터 락을 풀어 조종이
+    // 통째로 끊긴다. 문서 전체에서 캡처 단계로 막는다.
+    document.addEventListener("contextmenu", this.handleContextMenu, { capture: true });
   }
 
   /** 조종이 활성화돼 있는지 여부. HUD 오버레이 표시에 사용한다. */
@@ -154,7 +158,9 @@ export class FlightInput {
     document.removeEventListener("mousemove", this.handleMouseMove);
     document.removeEventListener("mousedown", this.handleMouseDown);
     document.removeEventListener("mouseup", this.handleMouseUp);
-    this.canvas.removeEventListener("contextmenu", this.handleContextMenu);
+    document.removeEventListener("contextmenu", this.handleContextMenu, {
+      capture: true,
+    });
   }
 
   private axis(positiveCode: string, negativeCode: string): number {
