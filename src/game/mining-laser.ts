@@ -1,6 +1,7 @@
 import * as THREE from "three";
 
 import { MINING_LASER } from "../constants";
+import { PALETTE } from "../palette";
 import type { Asteroid } from "./asteroid";
 import type { AsteroidField } from "./asteroid-field";
 import type { DebrisField } from "./debris-field";
@@ -8,9 +9,9 @@ import type { MiningEligibility, ShipEquipment } from "./equipment";
 import { RESOURCE } from "./minerals";
 
 /** 캘 수 있을 때의 빔 색. */
-const BEAM_COLOR_ALLOWED = 0xff9a3c;
+const BEAM_COLOR_ALLOWED = PALETTE.Active;
 /** 캘 수 없을 때의 빔 색. 색이 1차 신호이므로 글보다 먼저 읽혀야 한다. */
-const BEAM_COLOR_LOCKED = 0xff3b3b;
+const BEAM_COLOR_LOCKED = PALETTE.Locked;
 
 /** 함선 코끝에서 빔이 나가는 지점 (로컬 좌표). */
 const MUZZLE_OFFSET: THREE.Vector3 = new THREE.Vector3(0, -0.2, -2.2);

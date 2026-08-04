@@ -13,12 +13,15 @@ import { Hud } from "./game/hud";
 import { MiningLaser } from "./game/mining-laser";
 import type { AimReport } from "./game/mining-laser";
 import { Ship } from "./game/ship";
+import { Nebula } from "./game/nebula";
 import { Starfield } from "./game/starfield";
 import { Station } from "./game/station";
 import { StationConsole } from "./game/station-console";
 import type { StationView } from "./game/station-console";
 import { StationStock } from "./game/station-stock";
 import { TractorBeam } from "./game/tractor-beam";
+import { PALETTE } from "./palette";
+import { PostProcessing } from "./rendering/post-processing";
 
 /** 렌더 대상 캔버스를 가져온다. */
 function requireCanvas(id: string): HTMLCanvasElement {
@@ -34,20 +37,23 @@ function requireCanvas(id: string): HTMLCanvasElement {
  *
  * 먼 항성이 주광이고, 반대편에서 푸른 반사광이 윤곽을 잡는다. 여기에 위아래로
  * 색이 갈리는 반구광을 더해 그림자면이 완전히 검게 죽지 않도록 받쳐준다.
+ *
+ * 세기는 ACES 톤 매핑을 전제로 잡았다. 톤 매핑은 하이라이트를 눌러 색이 타는
+ * 것을 막는 대신 전체를 어둡게 만들므로, 톤 매핑을 끄면 과하게 밝아진다.
  */
 function createLighting(): THREE.Object3D[] {
   const hemisphere: THREE.HemisphereLight = new THREE.HemisphereLight(
     0x9dc6ec,
     0x263148,
-    1.5,
+    1.8,
   );
 
-  const ambient: THREE.AmbientLight = new THREE.AmbientLight(0x4b6a91, 1.2);
+  const ambient: THREE.AmbientLight = new THREE.AmbientLight(0x4b6a91, 1.4);
 
-  const keyLight: THREE.DirectionalLight = new THREE.DirectionalLight(0xfff2e0, 3.4);
+  const keyLight: THREE.DirectionalLight = new THREE.DirectionalLight(0xfff2e0, 4.2);
   keyLight.position.set(-120, 90, -60);
 
-  const rimLight: THREE.DirectionalLight = new THREE.DirectionalLight(0x6fb6e8, 1.8);
+  const rimLight: THREE.DirectionalLight = new THREE.DirectionalLight(0x6fb6e8, 2.2);
   rimLight.position.set(80, -40, 110);
 
   return [hemisphere, ambient, keyLight, rimLight];
@@ -63,7 +69,7 @@ function bootstrap(): void {
   });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setSize(window.innerWidth, window.innerHeight, false);
-  renderer.setClearColor(0x04060d, 1);
+  renderer.setClearColor(PALETTE.Void, 1);
 
   const scene: THREE.Scene = new THREE.Scene();
   for (const light of createLighting()) {
@@ -72,6 +78,9 @@ function bootstrap(): void {
 
   const ship: Ship = new Ship();
   scene.add(ship.object3D);
+
+  const nebula: Nebula = new Nebula();
+  scene.add(nebula.object3D);
 
   const starfield: Starfield = new Starfield();
   scene.add(starfield.object3D);
@@ -104,6 +113,12 @@ function bootstrap(): void {
     window.innerWidth / window.innerHeight,
   );
 
+  const postProcessing: PostProcessing = new PostProcessing(
+    renderer,
+    scene,
+    chaseCamera.camera,
+  );
+
   const input: FlightInput = new FlightInput(canvas);
   const hud: Hud = new Hud();
   hud.onEngageRequested(() => {
@@ -113,6 +128,7 @@ function bootstrap(): void {
   window.addEventListener("resize", () => {
     renderer.setSize(window.innerWidth, window.innerHeight, false);
     chaseCamera.setAspect(window.innerWidth / window.innerHeight);
+    postProcessing.setSize(window.innerWidth, window.innerHeight);
   });
 
   const clock: THREE.Clock = new THREE.Clock();
@@ -124,6 +140,7 @@ function bootstrap(): void {
 
     ship.update(deltaSeconds, flightInput);
     chaseCamera.update(deltaSeconds);
+    nebula.follow(ship.position);
     starfield.follow(ship.position);
     dustField.wrapAround(ship.position);
 
@@ -169,7 +186,7 @@ function bootstrap(): void {
     hud.updateEquipment(equipment, station.distanceTo(ship.position));
     hud.updateStation(stationView);
 
-    renderer.render(scene, chaseCamera.camera);
+    postProcessing.render();
   });
 }
 

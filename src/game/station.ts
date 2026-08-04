@@ -1,9 +1,10 @@
 import * as THREE from "three";
 
 import { STATION } from "../constants";
+import { PALETTE } from "../palette";
 
 /** 거점 구조물의 강조색. */
-const STATION_ACCENT = 0x7fe3ff;
+const STATION_ACCENT = PALETTE.Signal;
 
 /**
  * 거점.
@@ -26,7 +27,7 @@ export class Station {
     );
 
     const hullMaterial: THREE.MeshStandardMaterial = new THREE.MeshStandardMaterial({
-      color: 0x8496b0,
+      color: PALETTE.Hull,
       metalness: 0.35,
       roughness: 0.5,
       emissive: 0x1c3348,

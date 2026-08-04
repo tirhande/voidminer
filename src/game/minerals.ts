@@ -1,3 +1,5 @@
+import { PALETTE } from "../palette";
+
 /**
  * 자원 종류.
  *
@@ -52,7 +54,7 @@ export const MINERAL_DEFINITIONS: Readonly<Record<MineralId, MineralDefinition>>
     id: RESOURCE.Copper,
     displayName: "구리",
     tier: 1,
-    color: 0xc87b4a,
+    color: PALETTE.Copper,
     requiredLaserTier: 1,
     requiredLaserUpgrade: 0,
     gemChance: 0.04,
@@ -62,7 +64,7 @@ export const MINERAL_DEFINITIONS: Readonly<Record<MineralId, MineralDefinition>>
     id: RESOURCE.Iron,
     displayName: "철",
     tier: 2,
-    color: 0x9aa7b8,
+    color: PALETTE.Iron,
     requiredLaserTier: 1,
     requiredLaserUpgrade: 3,
     gemChance: 0.07,
@@ -72,7 +74,7 @@ export const MINERAL_DEFINITIONS: Readonly<Record<MineralId, MineralDefinition>>
     id: RESOURCE.Titanium,
     displayName: "티타늄",
     tier: 3,
-    color: 0x8fd8ef,
+    color: PALETTE.Titanium,
     requiredLaserTier: 2,
     requiredLaserUpgrade: 3,
     gemChance: 0.11,
@@ -83,7 +85,7 @@ export const MINERAL_DEFINITIONS: Readonly<Record<MineralId, MineralDefinition>>
 /** 보석의 표시 정보. 광물이 아니므로 티어와 잠금이 없다. */
 export const GEM_DISPLAY = {
   displayName: "보석",
-  color: 0xc07de8,
+  color: PALETTE.Gem,
 } as const;
 
 /**

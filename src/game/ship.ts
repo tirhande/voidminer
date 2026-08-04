@@ -1,6 +1,7 @@
 import * as THREE from "three";
 
 import { SHIP_TUNING } from "../constants";
+import { PALETTE } from "../palette";
 import type { FlightInputState } from "./flight-input";
 
 /** 함선 로컬 좌표계의 기준 축. 함선은 -Z 방향을 바라본다. */
@@ -35,7 +36,7 @@ export class Ship {
     // 재질이라, 반사할 것이 없는 우주 공간에서 금속성을 높이면 검게 죽는다.
     // 자체 발광을 약하게 깔아 그림자 쪽도 완전히 어두워지지 않게 한다.
     const hullMaterial: THREE.MeshStandardMaterial = new THREE.MeshStandardMaterial({
-      color: 0x9fb2ce,
+      color: PALETTE.Hull,
       metalness: 0.3,
       roughness: 0.55,
       emissive: 0x243a5c,
@@ -43,10 +44,10 @@ export class Ship {
       flatShading: true,
     });
     const trimMaterial: THREE.MeshStandardMaterial = new THREE.MeshStandardMaterial({
-      color: 0x44607a,
+      color: PALETTE.Trim,
       metalness: 0.25,
       roughness: 0.6,
-      emissive: 0x2fb0d6,
+      emissive: PALETTE.Signal,
       emissiveIntensity: 1.3,
       flatShading: true,
     });
