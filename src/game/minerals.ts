@@ -37,6 +37,14 @@ export type MineralDefinition = {
   readonly requiredLaserUpgrade: number;
   /** 파편 하나가 떨어질 때 보석이 함께 나올 확률 (0~1) */
   readonly gemChance: number;
+  /**
+   * 다 캔 뒤 새 소행성이 들어서기까지 걸리는 시간 (s).
+   *
+   * GDD 02 에서 재생은 확정이고, 진행 동기는 되고 안 되고가 아니라 시간 차이로
+   * 만든다. 하위 광물은 빨리 돌아오므로 지나온 지역이 죽지 않고, 상위 광물은
+   * 오래 걸리므로 기다리는 것보다 앞으로 가는 편이 빠르다.
+   */
+  readonly respawnSeconds: number;
 };
 
 export const MINERAL_DEFINITIONS: Readonly<Record<MineralId, MineralDefinition>> = {
@@ -48,6 +56,7 @@ export const MINERAL_DEFINITIONS: Readonly<Record<MineralId, MineralDefinition>>
     requiredLaserTier: 1,
     requiredLaserUpgrade: 0,
     gemChance: 0.04,
+    respawnSeconds: 45,
   },
   [RESOURCE.Iron]: {
     id: RESOURCE.Iron,
@@ -57,6 +66,7 @@ export const MINERAL_DEFINITIONS: Readonly<Record<MineralId, MineralDefinition>>
     requiredLaserTier: 1,
     requiredLaserUpgrade: 3,
     gemChance: 0.07,
+    respawnSeconds: 150,
   },
   [RESOURCE.Titanium]: {
     id: RESOURCE.Titanium,
@@ -66,6 +76,7 @@ export const MINERAL_DEFINITIONS: Readonly<Record<MineralId, MineralDefinition>>
     requiredLaserTier: 2,
     requiredLaserUpgrade: 3,
     gemChance: 0.11,
+    respawnSeconds: 420,
   },
 };
 

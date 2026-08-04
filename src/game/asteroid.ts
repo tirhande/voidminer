@@ -1,6 +1,6 @@
 import * as THREE from "three";
 
-import type { AsteroidSizeDefinition, MineralDefinition } from "./minerals";
+import type { AsteroidSize, AsteroidSizeDefinition, MineralDefinition } from "./minerals";
 
 /** 표면 요철의 세기. 반지름에 대한 비율이다. */
 const SURFACE_ROUGHNESS = 0.28;
@@ -57,6 +57,8 @@ export class Asteroid {
   public readonly object3D: THREE.Mesh;
   public readonly mineral: MineralDefinition;
   public readonly radius: number;
+  /** 크기 등급. 재생할 때 같은 등급으로 되돌리는 데 쓴다 */
+  public readonly sizeName: AsteroidSize;
 
   private readonly totalMineral: number;
   private remainingMineral: number;
@@ -69,6 +71,7 @@ export class Asteroid {
   ) {
     this.mineral = mineral;
     this.radius = sizeDefinition.radius;
+    this.sizeName = sizeDefinition.size;
     this.totalMineral = sizeDefinition.mineralAmount;
     this.remainingMineral = sizeDefinition.mineralAmount;
 
