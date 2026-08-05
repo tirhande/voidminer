@@ -2,6 +2,7 @@ import * as THREE from "three";
 
 import { DEBRIS, TRACTOR_BEAM } from "../constants";
 import type { Cargo } from "./cargo";
+import { EMISSION, SURFACE } from "../palette";
 import { RESOURCE, resourceColor, type ResourceId } from "./minerals";
 
 /** 부유 중인 파편 하나. */
@@ -165,9 +166,9 @@ export class DebrisField {
     const material: THREE.MeshStandardMaterial = new THREE.MeshStandardMaterial({
       color,
       emissive: color,
-      emissiveIntensity: resource === RESOURCE.Gem ? 1.1 : 0.55,
-      metalness: 0.2,
-      roughness: 0.6,
+      emissiveIntensity: resource === RESOURCE.Gem ? EMISSION.Gem : EMISSION.Debris,
+      metalness: SURFACE.RockMetalness,
+      roughness: SURFACE.RockRoughness,
       flatShading: true,
     });
     this.materials.set(resource, material);

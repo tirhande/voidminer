@@ -1,6 +1,6 @@
 import * as THREE from "three";
 
-import { PALETTE } from "../palette";
+import { PALETTE, POINT_LIGHT } from "../palette";
 
 /** 한 번에 그릴 수 있는 견인 줄기의 최대 수. */
 const MAX_STRANDS = 64;
@@ -106,7 +106,7 @@ export class TractorBeam {
     this.emitter.scale.setScalar(pulse);
     this.emitter.material.opacity = 0.5 + (pulse - 1) * 0.6;
     this.emitterLight.position.copy(scratchEmitter);
-    this.emitterLight.intensity = 10 * pulse;
+    this.emitterLight.intensity = POINT_LIGHT.TractorEmitter * pulse;
 
     const strandCount: number = Math.min(pulledDebris.length, MAX_STRANDS);
     for (let index = 0; index < strandCount; index += 1) {

@@ -20,7 +20,7 @@ import { StationConsole } from "./game/station-console";
 import type { StationView } from "./game/station-console";
 import { StationStock } from "./game/station-stock";
 import { TractorBeam } from "./game/tractor-beam";
-import { PALETTE } from "./palette";
+import { LIGHTING, PALETTE } from "./palette";
 import { PostProcessing } from "./rendering/post-processing";
 
 /** 렌더 대상 캔버스를 가져온다. */
@@ -45,15 +45,24 @@ function createLighting(): THREE.Object3D[] {
   const hemisphere: THREE.HemisphereLight = new THREE.HemisphereLight(
     0x9dc6ec,
     0x263148,
-    1.8,
+    LIGHTING.HemisphereIntensity,
   );
 
-  const ambient: THREE.AmbientLight = new THREE.AmbientLight(0x4b6a91, 1.4);
+  const ambient: THREE.AmbientLight = new THREE.AmbientLight(
+    0x4b6a91,
+    LIGHTING.AmbientIntensity,
+  );
 
-  const keyLight: THREE.DirectionalLight = new THREE.DirectionalLight(0xfff2e0, 4.2);
+  const keyLight: THREE.DirectionalLight = new THREE.DirectionalLight(
+    0xfff2e0,
+    LIGHTING.KeyIntensity,
+  );
   keyLight.position.set(-120, 90, -60);
 
-  const rimLight: THREE.DirectionalLight = new THREE.DirectionalLight(0x6fb6e8, 2.2);
+  const rimLight: THREE.DirectionalLight = new THREE.DirectionalLight(
+    0x6fb6e8,
+    LIGHTING.RimIntensity,
+  );
   rimLight.position.set(80, -40, 110);
 
   return [hemisphere, ambient, keyLight, rimLight];

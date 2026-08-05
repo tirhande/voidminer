@@ -1,7 +1,7 @@
 import * as THREE from "three";
 
 import { MINING_LASER } from "../constants";
-import { PALETTE } from "../palette";
+import { PALETTE, POINT_LIGHT } from "../palette";
 import type { Asteroid } from "./asteroid";
 import type { AsteroidField } from "./asteroid-field";
 import type { DebrisField } from "./debris-field";
@@ -246,7 +246,7 @@ export class MiningLaser {
       this.impact.material.opacity = 0.9;
       this.impactLight.position.copy(hitPoint);
       this.impactLight.color.setHex(color);
-      this.impactLight.intensity = 18 * pulse;
+      this.impactLight.intensity = POINT_LIGHT.MiningImpact * pulse;
     } else {
       // 튕긴다. 빛 없이 작게 흔들리기만 한다 — 빔이 아예 안 나가면 고장으로 보인다.
       const jitter: number = 0.75 + Math.sin(this.pulseSeconds * 60) * 0.15;

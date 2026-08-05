@@ -1,7 +1,7 @@
 import * as THREE from "three";
 
 import { SHIP_TUNING } from "../constants";
-import { PALETTE } from "../palette";
+import { EMISSION, PALETTE, POINT_LIGHT, SURFACE } from "../palette";
 import type { FlightInputState } from "./flight-input";
 
 /** 함선 로컬 좌표계의 기준 축. 함선은 -Z 방향을 바라본다. */
@@ -37,18 +37,18 @@ export class Ship {
     // 자체 발광을 약하게 깔아 그림자 쪽도 완전히 어두워지지 않게 한다.
     const hullMaterial: THREE.MeshStandardMaterial = new THREE.MeshStandardMaterial({
       color: PALETTE.Hull,
-      metalness: 0.3,
-      roughness: 0.55,
+      metalness: SURFACE.HullMetalness,
+      roughness: SURFACE.HullRoughness,
       emissive: 0x243a5c,
-      emissiveIntensity: 0.45,
+      emissiveIntensity: EMISSION.Hull,
       flatShading: true,
     });
     const trimMaterial: THREE.MeshStandardMaterial = new THREE.MeshStandardMaterial({
       color: PALETTE.Trim,
-      metalness: 0.25,
-      roughness: 0.6,
+      metalness: SURFACE.HullMetalness,
+      roughness: SURFACE.HullRoughness,
       emissive: PALETTE.Signal,
-      emissiveIntensity: 1.3,
+      emissiveIntensity: EMISSION.Trim,
       flatShading: true,
     });
 
@@ -181,6 +181,6 @@ export class Ship {
 
     this.engineGlow.scale.setScalar(0.55 + intensity * 0.85);
     this.engineGlow.material.opacity = 0.35 + intensity * 0.6;
-    this.engineLight.intensity = intensity * 22;
+    this.engineLight.intensity = intensity * POINT_LIGHT.Engine;
   }
 }

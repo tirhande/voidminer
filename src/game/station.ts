@@ -1,7 +1,7 @@
 import * as THREE from "three";
 
 import { STATION } from "../constants";
-import { PALETTE } from "../palette";
+import { EMISSION, PALETTE, POINT_LIGHT, SURFACE } from "../palette";
 
 /** 거점 구조물의 강조색. */
 const STATION_ACCENT = PALETTE.Signal;
@@ -28,10 +28,10 @@ export class Station {
 
     const hullMaterial: THREE.MeshStandardMaterial = new THREE.MeshStandardMaterial({
       color: PALETTE.Hull,
-      metalness: 0.35,
-      roughness: 0.5,
+      metalness: SURFACE.HullMetalness,
+      roughness: SURFACE.HullRoughness,
       emissive: 0x1c3348,
-      emissiveIntensity: 0.5,
+      emissiveIntensity: EMISSION.Hull,
       flatShading: true,
     });
     const accentMaterial: THREE.MeshBasicMaterial = new THREE.MeshBasicMaterial({
@@ -80,7 +80,7 @@ export class Station {
       this.object3D.add(beacon);
     }
 
-    const beaconLight: THREE.PointLight = new THREE.PointLight(STATION_ACCENT, 40, 260, 2);
+    const beaconLight: THREE.PointLight = new THREE.PointLight(STATION_ACCENT, POINT_LIGHT.StationBeacon, 260, 2);
     this.object3D.add(beaconLight);
   }
 

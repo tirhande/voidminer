@@ -1,5 +1,6 @@
 import * as THREE from "three";
 
+import { EMISSION, SURFACE } from "../palette";
 import type { AsteroidSize, AsteroidSizeDefinition, MineralDefinition } from "./minerals";
 
 /** 표면 요철의 세기. 반지름에 대한 비율이다. */
@@ -77,10 +78,10 @@ export class Asteroid {
 
     const material: THREE.MeshStandardMaterial = new THREE.MeshStandardMaterial({
       color: mineral.color,
-      metalness: 0.15,
-      roughness: 0.85,
+      metalness: SURFACE.RockMetalness,
+      roughness: SURFACE.RockRoughness,
       emissive: mineral.color,
-      emissiveIntensity: 0.12,
+      emissiveIntensity: EMISSION.Rock,
       flatShading: true,
     });
 
