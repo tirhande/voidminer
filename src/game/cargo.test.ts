@@ -44,13 +44,13 @@ describe("화물칸", () => {
     expect(cargo.amountOf(RESOURCE.Iron)).toBe(0);
   });
 
-  it("보석도 화물 용량을 차지한다", () => {
+  it("부광물도 화물 용량을 차지한다", () => {
     const cargo: Cargo = new Cargo();
 
-    cargo.add(RESOURCE.Gem, 3);
+    cargo.add(RESOURCE.Tin, 3);
 
     expect(cargo.total).toBe(3);
-    expect(cargo.amountOf(RESOURCE.Gem)).toBe(3);
+    expect(cargo.amountOf(RESOURCE.Tin)).toBe(3);
   });
 
   it("빈 화물칸의 합계는 0이다", () => {

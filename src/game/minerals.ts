@@ -1,31 +1,49 @@
 import { PALETTE } from "../palette";
 
 /**
- * 자원 종류.
+ * 광물 8종.
  *
- * 광물 셋은 티어를 이루고, 보석은 티어에 속하지 않는 부산물이다. 보석은 채굴
- * 시 확률로 "추가" 산출된다 — 기본 광물의 산출을 깎지 않으므로 도박이 아니라
- * 보너스다. GDD 01 의 "확률은 바닥을 깎지 말고 천장을 올린다" 원칙이다.
+ * 주광물 4종에 각각 짝인 부광물이 하나씩 붙는다. 짝을 함께 제련하면 합금이
+ * 되고, 그 합금이 다음 티어 장비의 재료가 된다 (GDD 02).
+ *
+ * 보석은 없앴다. 확률 산출 자리를 부광물이 대신한다 — 구리를 캐다 가끔 주석이
+ * 나온다. 산출이 사라지는 것이 아니라 짝으로 바뀌는 것이라, 바닥이 깎이지
+ * 않는다는 원칙이 그대로 지켜진다.
  */
 export const RESOURCE = {
   Copper: "COPPER",
+  Tin: "TIN",
   Iron: "IRON",
+  Nickel: "NICKEL",
   Titanium: "TITANIUM",
-  Gem: "GEM",
+  Aluminum: "ALUMINUM",
+  Iridium: "IRIDIUM",
+  Platinum: "PLATINUM",
 } as const;
 
 export type ResourceId = (typeof RESOURCE)[keyof typeof RESOURCE];
 
-/** 소행성에서 캐낼 수 있는 광물. 보석은 부산물이므로 제외된다. */
-export type MineralId = Exclude<ResourceId, typeof RESOURCE.Gem>;
+/** 광물은 전부 캘 수 있다. 부산물 전용 자원은 없다. */
+export type MineralId = ResourceId;
+
+/** 합금 4종. 짝인 두 주괴를 합쳐 만든다. */
+export const ALLOY = {
+  Bronze: "BRONZE",
+  NickelSteel: "NICKEL_STEEL",
+  TitaniumAlloy: "TITANIUM_ALLOY",
+  PlatinumIridium: "PLATINUM_IRIDIUM",
+} as const;
+
+export type AlloyId = (typeof ALLOY)[keyof typeof ALLOY];
 
 /** 광물 하나의 정의. */
 export type MineralDefinition = {
   readonly id: MineralId;
-  /** 화면에 표시할 이름 */
   readonly displayName: string;
-  /** 광물 티어. 장비 티어와 1:1 로 대응한다 */
-  readonly tier: number;
+  /** 짝인 광물. 함께 제련하면 합금이 된다 */
+  readonly pair: MineralId;
+  /** 주광물인지 여부. 짝 쪽이 부광물이다 */
+  readonly isPrimary: boolean;
   /** 소행성과 파편에 쓰이는 색 */
   readonly color: number;
   /** 캐는 데 필요한 레이저 티어 */
@@ -33,19 +51,18 @@ export type MineralDefinition = {
   /**
    * 캐는 데 필요한 레이저 업그레이드 수준.
    *
-   * GDD 07 에서 잠금 조건은 티어와 업그레이드 둘 다로 확정됐다. 업그레이드는
-   * 곁가지가 아니라 다음 티어를 여는 열쇠다.
+   * 부광물은 같은 티어에서 강화 3을 요구한다. 이것이 티어 순환을 끊는 장치다
+   * (GDD 07) — 강화가 짝을 열고, 그 짝으로 합금을 만들어 다음 티어로 간다.
    */
   readonly requiredLaserUpgrade: number;
-  /** 파편 하나가 떨어질 때 보석이 함께 나올 확률 (0~1) */
-  readonly gemChance: number;
   /**
-   * 다 캔 뒤 새 소행성이 들어서기까지 걸리는 시간 (s).
+   * 분포 가중치.
    *
-   * GDD 02 에서 재생은 확정이고, 진행 동기는 되고 안 되고가 아니라 시간 차이로
-   * 만든다. 하위 광물은 빨리 돌아오므로 지나온 지역이 죽지 않고, 상위 광물은
-   * 오래 걸리므로 기다리는 것보다 앞으로 가는 편이 빠르다.
+   * 티어와 분포는 별개 속성이다 (GDD 02). 철은 상위 티어인데 가장 흔하다.
+   * 흔한 것과 나중에 쓰는 것은 다른 이야기이므로 모순이 아니다.
    */
+  readonly abundance: number;
+  /** 다 캔 뒤 새 소행성이 들어서기까지 걸리는 시간 (s) */
   readonly respawnSeconds: number;
 };
 
@@ -53,51 +70,165 @@ export const MINERAL_DEFINITIONS: Readonly<Record<MineralId, MineralDefinition>>
   [RESOURCE.Copper]: {
     id: RESOURCE.Copper,
     displayName: "구리",
-    tier: 1,
+    pair: RESOURCE.Tin,
+    isPrimary: true,
     color: PALETTE.Copper,
     requiredLaserTier: 1,
     requiredLaserUpgrade: 0,
-    gemChance: 0.04,
+    abundance: 18,
     respawnSeconds: 45,
+  },
+  [RESOURCE.Tin]: {
+    id: RESOURCE.Tin,
+    displayName: "주석",
+    pair: RESOURCE.Copper,
+    isPrimary: false,
+    color: PALETTE.Tin,
+    requiredLaserTier: 1,
+    requiredLaserUpgrade: 3,
+    abundance: 7,
+    respawnSeconds: 60,
   },
   [RESOURCE.Iron]: {
     id: RESOURCE.Iron,
     displayName: "철",
-    tier: 2,
+    pair: RESOURCE.Nickel,
+    isPrimary: true,
     color: PALETTE.Iron,
-    requiredLaserTier: 1,
-    requiredLaserUpgrade: 3,
-    gemChance: 0.07,
+    requiredLaserTier: 2,
+    requiredLaserUpgrade: 0,
+    abundance: 26,
     respawnSeconds: 150,
+  },
+  [RESOURCE.Nickel]: {
+    id: RESOURCE.Nickel,
+    displayName: "니켈",
+    pair: RESOURCE.Iron,
+    isPrimary: false,
+    color: PALETTE.Nickel,
+    requiredLaserTier: 2,
+    requiredLaserUpgrade: 3,
+    abundance: 10,
+    respawnSeconds: 180,
   },
   [RESOURCE.Titanium]: {
     id: RESOURCE.Titanium,
     displayName: "티타늄",
-    tier: 3,
+    pair: RESOURCE.Aluminum,
+    isPrimary: true,
     color: PALETTE.Titanium,
-    requiredLaserTier: 2,
+    requiredLaserTier: 4,
+    requiredLaserUpgrade: 0,
+    abundance: 10,
+    respawnSeconds: 300,
+  },
+  [RESOURCE.Aluminum]: {
+    id: RESOURCE.Aluminum,
+    displayName: "알루미늄",
+    pair: RESOURCE.Titanium,
+    isPrimary: false,
+    color: PALETTE.Aluminum,
+    requiredLaserTier: 4,
     requiredLaserUpgrade: 3,
-    gemChance: 0.11,
-    respawnSeconds: 420,
+    abundance: 5,
+    respawnSeconds: 330,
+  },
+  [RESOURCE.Iridium]: {
+    id: RESOURCE.Iridium,
+    displayName: "이리듐",
+    pair: RESOURCE.Platinum,
+    isPrimary: true,
+    color: PALETTE.Iridium,
+    requiredLaserTier: 6,
+    requiredLaserUpgrade: 0,
+    abundance: 3,
+    respawnSeconds: 600,
+  },
+  [RESOURCE.Platinum]: {
+    id: RESOURCE.Platinum,
+    displayName: "백금",
+    pair: RESOURCE.Iridium,
+    isPrimary: false,
+    color: PALETTE.Platinum,
+    requiredLaserTier: 6,
+    requiredLaserUpgrade: 3,
+    abundance: 2,
+    respawnSeconds: 660,
   },
 };
 
-/** 보석의 표시 정보. 광물이 아니므로 티어와 잠금이 없다. */
-export const GEM_DISPLAY = {
-  displayName: "보석",
-  color: PALETTE.Gem,
-} as const;
+/** 합금 하나의 정의. */
+export type AlloyDefinition = {
+  readonly id: AlloyId;
+  readonly displayName: string;
+  readonly color: number;
+  /** 주광물 주괴 */
+  readonly primary: MineralId;
+  /** 짝인 부광물 주괴 */
+  readonly pair: MineralId;
+};
+
+export const ALLOY_DEFINITIONS: Readonly<Record<AlloyId, AlloyDefinition>> = {
+  [ALLOY.Bronze]: {
+    id: ALLOY.Bronze,
+    displayName: "청동",
+    color: PALETTE.Bronze,
+    primary: RESOURCE.Copper,
+    pair: RESOURCE.Tin,
+  },
+  [ALLOY.NickelSteel]: {
+    id: ALLOY.NickelSteel,
+    displayName: "니켈강",
+    color: PALETTE.NickelSteel,
+    primary: RESOURCE.Iron,
+    pair: RESOURCE.Nickel,
+  },
+  [ALLOY.TitaniumAlloy]: {
+    id: ALLOY.TitaniumAlloy,
+    displayName: "티타늄 합금",
+    color: PALETTE.TitaniumAlloy,
+    primary: RESOURCE.Titanium,
+    pair: RESOURCE.Aluminum,
+  },
+  [ALLOY.PlatinumIridium]: {
+    id: ALLOY.PlatinumIridium,
+    displayName: "백금이리듐",
+    color: PALETTE.PlatinumIridium,
+    primary: RESOURCE.Iridium,
+    pair: RESOURCE.Platinum,
+  },
+};
+
+/** 표시 순서를 고정하기 위한 목록. */
+export const MINERAL_ORDER: ReadonlyArray<MineralId> = [
+  RESOURCE.Copper,
+  RESOURCE.Tin,
+  RESOURCE.Iron,
+  RESOURCE.Nickel,
+  RESOURCE.Titanium,
+  RESOURCE.Aluminum,
+  RESOURCE.Iridium,
+  RESOURCE.Platinum,
+];
+
+export const ALLOY_ORDER: ReadonlyArray<AlloyId> = [
+  ALLOY.Bronze,
+  ALLOY.NickelSteel,
+  ALLOY.TitaniumAlloy,
+  ALLOY.PlatinumIridium,
+];
 
 /**
  * 소행성 크기 등급.
  *
- * GDD 02 의 "소행성 크기가 곧 광물 티어의 단서"를 그대로 옮긴 것이다. 크기만
- * 보고도 무엇이 나올지 짐작할 수 있어야 한다.
+ * 크기가 곧 광물 티어의 단서다 (GDD 02). 크기만 보고도 무엇이 나올지 짐작할
+ * 수 있어야 한다. 광물 쌍 하나가 크기 등급 하나에 대응한다.
  */
 export const ASTEROID_SIZE = {
   Small: "SMALL",
   Medium: "MEDIUM",
   Large: "LARGE",
+  Huge: "HUGE",
 } as const;
 
 export type AsteroidSize = (typeof ASTEROID_SIZE)[keyof typeof ASTEROID_SIZE];
@@ -107,8 +238,6 @@ export type AsteroidSizeDefinition = {
   readonly size: AsteroidSize;
   /** 기준 반지름 (m) */
   readonly radius: number;
-  /** 이 크기에 묻혀 있는 광물 */
-  readonly mineral: MineralId;
   /** 총 매장량 (광물 단위) */
   readonly mineralAmount: number;
 };
@@ -116,38 +245,35 @@ export type AsteroidSizeDefinition = {
 export const ASTEROID_SIZE_DEFINITIONS: Readonly<
   Record<AsteroidSize, AsteroidSizeDefinition>
 > = {
-  [ASTEROID_SIZE.Small]: {
-    size: ASTEROID_SIZE.Small,
-    radius: 6,
-    mineral: RESOURCE.Copper,
-    mineralAmount: 45,
-  },
-  [ASTEROID_SIZE.Medium]: {
-    size: ASTEROID_SIZE.Medium,
-    radius: 11,
-    mineral: RESOURCE.Iron,
-    mineralAmount: 95,
-  },
-  [ASTEROID_SIZE.Large]: {
-    size: ASTEROID_SIZE.Large,
-    radius: 17,
-    mineral: RESOURCE.Titanium,
-    mineralAmount: 170,
-  },
+  [ASTEROID_SIZE.Small]: { size: ASTEROID_SIZE.Small, radius: 6, mineralAmount: 45 },
+  [ASTEROID_SIZE.Medium]: { size: ASTEROID_SIZE.Medium, radius: 11, mineralAmount: 95 },
+  [ASTEROID_SIZE.Large]: { size: ASTEROID_SIZE.Large, radius: 17, mineralAmount: 170 },
+  [ASTEROID_SIZE.Huge]: { size: ASTEROID_SIZE.Huge, radius: 24, mineralAmount: 260 },
 };
 
-/** 표시용 이름을 얻는다. 보석과 광물을 한 자리에서 처리한다. */
+/** 광물이 묻혀 있는 소행성의 크기 등급. 광물 쌍마다 하나씩 대응한다. */
+const MINERAL_SIZE: Readonly<Record<MineralId, AsteroidSize>> = {
+  [RESOURCE.Copper]: ASTEROID_SIZE.Small,
+  [RESOURCE.Tin]: ASTEROID_SIZE.Small,
+  [RESOURCE.Iron]: ASTEROID_SIZE.Medium,
+  [RESOURCE.Nickel]: ASTEROID_SIZE.Medium,
+  [RESOURCE.Titanium]: ASTEROID_SIZE.Large,
+  [RESOURCE.Aluminum]: ASTEROID_SIZE.Large,
+  [RESOURCE.Iridium]: ASTEROID_SIZE.Huge,
+  [RESOURCE.Platinum]: ASTEROID_SIZE.Huge,
+};
+
+/** 광물에 대응하는 소행성 크기 등급을 얻는다. */
+export function sizeForMineral(mineral: MineralId): AsteroidSizeDefinition {
+  return ASTEROID_SIZE_DEFINITIONS[MINERAL_SIZE[mineral]];
+}
+
+/** 표시용 이름을 얻는다. */
 export function resourceDisplayName(id: ResourceId): string {
-  if (id === RESOURCE.Gem) {
-    return GEM_DISPLAY.displayName;
-  }
   return MINERAL_DEFINITIONS[id].displayName;
 }
 
 /** 표시용 색을 얻는다. */
 export function resourceColor(id: ResourceId): number {
-  if (id === RESOURCE.Gem) {
-    return GEM_DISPLAY.color;
-  }
   return MINERAL_DEFINITIONS[id].color;
 }

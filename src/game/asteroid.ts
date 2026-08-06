@@ -1,6 +1,7 @@
 import * as THREE from "three";
 
 import { EMISSION, SURFACE } from "../palette";
+import { sizeForMineral } from "./minerals";
 import type { AsteroidSize, AsteroidSizeDefinition, MineralDefinition } from "./minerals";
 
 /** 표면 요철의 세기. 반지름에 대한 비율이다. */
@@ -64,12 +65,9 @@ export class Asteroid {
   private readonly totalMineral: number;
   private remainingMineral: number;
 
-  public constructor(
-    sizeDefinition: AsteroidSizeDefinition,
-    mineral: MineralDefinition,
-    position: THREE.Vector3,
-    seed: number,
-  ) {
+  public constructor(mineral: MineralDefinition, position: THREE.Vector3, seed: number) {
+    // 크기는 광물이 정한다. 크기가 곧 티어의 단서이므로 따로 받지 않는다.
+    const sizeDefinition: AsteroidSizeDefinition = sizeForMineral(mineral.id);
     this.mineral = mineral;
     this.radius = sizeDefinition.radius;
     this.sizeName = sizeDefinition.size;

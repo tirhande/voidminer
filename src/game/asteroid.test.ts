@@ -3,22 +3,15 @@ import { describe, expect, it } from "vitest";
 
 import { Asteroid } from "./asteroid";
 import {
-  ASTEROID_SIZE,
-  ASTEROID_SIZE_DEFINITIONS,
   MINERAL_DEFINITIONS,
   RESOURCE,
-  type AsteroidSize,
+  sizeForMineral,
+  type MineralId,
 } from "./minerals";
 
 /** 시험용 소행성 하나를 만든다. */
-function buildAsteroid(size: AsteroidSize = ASTEROID_SIZE.Small): Asteroid {
-  const definition = ASTEROID_SIZE_DEFINITIONS[size];
-  return new Asteroid(
-    definition,
-    MINERAL_DEFINITIONS[definition.mineral],
-    new THREE.Vector3(0, 0, -50),
-    1234,
-  );
+function buildAsteroid(mineral: MineralId = RESOURCE.Copper): Asteroid {
+  return new Asteroid(MINERAL_DEFINITIONS[mineral], new THREE.Vector3(0, 0, -50), 1234);
 }
 
 describe("소행성 채굴", () => {
@@ -34,14 +27,14 @@ describe("소행성 채굴", () => {
 
   it("캔 만큼은 반드시 나온다 — 헛수고가 없다", () => {
     const asteroid: Asteroid = buildAsteroid();
+    const total: number = sizeForMineral(RESOURCE.Copper).mineralAmount;
 
     let totalMined: number = 0;
-    for (let step = 0; step < 200; step += 1) {
+    for (let step = 0; step < total + 50; step += 1) {
       totalMined += asteroid.mine(1);
     }
 
-    // 매장량 전부가 손실 없이 산출된다.
-    expect(totalMined).toBe(ASTEROID_SIZE_DEFINITIONS[ASTEROID_SIZE.Small].mineralAmount);
+    expect(totalMined).toBe(total);
   });
 
   it("남은 양보다 많이 요청하면 남은 만큼만 준다", () => {
@@ -54,18 +47,13 @@ describe("소행성 채굴", () => {
     expect(asteroid.remaining).toBe(0);
   });
 
-  it("다 캐면 고갈 상태가 된다", () => {
+  it("다 캐면 고갈 상태가 되고 더 나오지 않는다", () => {
     const asteroid: Asteroid = buildAsteroid();
 
     expect(asteroid.isDepleted).toBe(false);
     asteroid.mine(asteroid.remaining);
+
     expect(asteroid.isDepleted).toBe(true);
-  });
-
-  it("고갈된 뒤에는 아무것도 나오지 않는다", () => {
-    const asteroid: Asteroid = buildAsteroid();
-    asteroid.mine(asteroid.remaining);
-
     expect(asteroid.mine(50)).toBe(0);
   });
 
@@ -78,18 +66,30 @@ describe("소행성 채굴", () => {
     expect(asteroid.object3D.scale.x).toBeLessThan(initialScale);
   });
 
-  it("크기 등급이 클수록 상위 광물과 더 많은 매장량을 가진다", () => {
-    const small: Asteroid = buildAsteroid(ASTEROID_SIZE.Small);
-    const large: Asteroid = buildAsteroid(ASTEROID_SIZE.Large);
+  it("상위 광물일수록 소행성이 크고 매장량이 많다 — 크기가 티어의 단서다", () => {
+    const ordered: MineralId[] = [
+      RESOURCE.Copper,
+      RESOURCE.Iron,
+      RESOURCE.Titanium,
+      RESOURCE.Iridium,
+    ];
 
-    expect(large.remaining).toBeGreaterThan(small.remaining);
-    expect(large.mineral.tier).toBeGreaterThan(small.mineral.tier);
-    expect(large.radius).toBeGreaterThan(small.radius);
+    for (let index = 1; index < ordered.length; index += 1) {
+      const previous = sizeForMineral(ordered[index - 1]);
+      const current = sizeForMineral(ordered[index]);
+      expect(current.radius).toBeGreaterThan(previous.radius);
+      expect(current.mineralAmount).toBeGreaterThan(previous.mineralAmount);
+    }
   });
 
-  it("크기 등급과 광물이 문서대로 대응한다", () => {
-    expect(ASTEROID_SIZE_DEFINITIONS[ASTEROID_SIZE.Small].mineral).toBe(RESOURCE.Copper);
-    expect(ASTEROID_SIZE_DEFINITIONS[ASTEROID_SIZE.Medium].mineral).toBe(RESOURCE.Iron);
-    expect(ASTEROID_SIZE_DEFINITIONS[ASTEROID_SIZE.Large].mineral).toBe(RESOURCE.Titanium);
+  it("짝인 광물은 주광물과 같은 크기 등급에 놓인다", () => {
+    expect(sizeForMineral(RESOURCE.Tin).size).toBe(sizeForMineral(RESOURCE.Copper).size);
+    expect(sizeForMineral(RESOURCE.Nickel).size).toBe(sizeForMineral(RESOURCE.Iron).size);
+    expect(sizeForMineral(RESOURCE.Aluminum).size).toBe(
+      sizeForMineral(RESOURCE.Titanium).size,
+    );
+    expect(sizeForMineral(RESOURCE.Platinum).size).toBe(
+      sizeForMineral(RESOURCE.Iridium).size,
+    );
   });
 });

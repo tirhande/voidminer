@@ -6,7 +6,7 @@ import type { Asteroid } from "./asteroid";
 import type { AsteroidField } from "./asteroid-field";
 import type { DebrisField } from "./debris-field";
 import type { MiningEligibility, ShipEquipment } from "./equipment";
-import { RESOURCE } from "./minerals";
+import { MINERAL_DEFINITIONS } from "./minerals";
 
 /** 캘 수 있을 때의 빔 색. */
 const BEAM_COLOR_ALLOWED = PALETTE.Active;
@@ -194,17 +194,15 @@ export class MiningLaser {
       this.pendingMineral -= MINING_LASER.MineralPerDebris;
 
       scratchOutward.subVectors(hitPoint, asteroid.position).normalize();
-      debris.spawn(
-        hitPoint,
-        scratchOutward,
-        asteroid.mineral.id,
-        MINING_LASER.MineralPerDebris,
-      );
 
-      // 보석은 기본 산출을 깎지 않고 그 위에 얹힌다. 안 나와도 손해가 아니다.
-      if (Math.random() < asteroid.mineral.gemChance) {
-        debris.spawn(hitPoint, scratchOutward, RESOURCE.Gem, 1);
-      }
+      // 가끔 짝인 광물이 나온다. 산출이 사라지는 것이 아니라 바뀌는 것이라
+      // 바닥이 깎이지 않는다. 짝은 다음 티어 합금의 재료다.
+      const yieldsPair: boolean =
+        equipment.evaluateMining(MINERAL_DEFINITIONS[asteroid.mineral.pair]).isAllowed &&
+        Math.random() < MINING_LASER.PairYieldChance;
+      const produced = yieldsPair ? asteroid.mineral.pair : asteroid.mineral.id;
+
+      debris.spawn(hitPoint, scratchOutward, produced, MINING_LASER.MineralPerDebris);
     }
   }
 

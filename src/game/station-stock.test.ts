@@ -3,15 +3,58 @@ import { describe, expect, it } from "vitest";
 import { SELL_PRICE, SMELTING } from "../constants";
 import { Cargo } from "./cargo";
 import { MAX_UPGRADE_LEVEL, ShipEquipment } from "./equipment";
-import { MINERAL_DEFINITIONS, RESOURCE, type MineralId } from "./minerals";
-import { StationStock, upgradeCostFor } from "./station-stock";
+import {
+  ALLOY,
+  ALLOY_DEFINITIONS,
+  MINERAL_DEFINITIONS,
+  RESOURCE,
+  type MineralId,
+} from "./minerals";
+import {
+  MAX_LASER_TIER,
+  StationStock,
+  craftCostFor,
+  materialForTier,
+  upgradeCostFor,
+} from "./station-stock";
 
-/** 저장고에 주괴를 직접 채운다. 하역과 제련을 거치는 경로를 그대로 쓴다. */
+/**
+ * 저장고에 광석을 넣는다. 화물 하역 경로를 그대로 쓴다.
+ *
+ * 화물칸에는 상한이 있으므로 한 번에 다 싣지 못한다. 여러 번 왕복한 셈으로
+ * 나눠 싣는다.
+ */
+function stockOre(stock: StationStock, mineral: MineralId, amount: number): void {
+  let remaining: number = amount;
+
+  while (remaining > 0) {
+    const cargo: Cargo = new Cargo();
+    const loaded: number = cargo.add(mineral, remaining);
+    stock.unload(cargo);
+    remaining -= loaded;
+  }
+}
+
+/** 저장고에 주괴를 채운다. 광석을 넣고 제련한다. */
 function stockIngots(stock: StationStock, mineral: MineralId, ingots: number): void {
-  const cargo: Cargo = new Cargo();
-  cargo.add(mineral, ingots * SMELTING.OrePerIngot);
-  stock.unload(cargo);
+  stockOre(stock, mineral, ingots * SMELTING.OrePerIngot);
   stock.smeltAll();
+}
+
+/** 지정한 티어의 재료를 필요한 만큼 채운다. 주괴든 합금이든 처리한다. */
+function stockMaterial(stock: StationStock, tier: number, amount: number): void {
+  const material = materialForTier(tier);
+
+  if (material.kind === "INGOT") {
+    stockIngots(stock, material.mineral, amount);
+    return;
+  }
+
+  // 합금은 주광물 주괴 셋과 짝인 주괴 하나로 만든다.
+  const definition = ALLOY_DEFINITIONS[material.alloy];
+  stockIngots(stock, definition.primary, amount * SMELTING.PrimaryIngotPerAlloy);
+  stockIngots(stock, definition.pair, amount * SMELTING.PairIngotPerAlloy);
+  stock.alloyAll();
 }
 
 describe("하역", () => {
@@ -19,14 +62,14 @@ describe("하역", () => {
     const stock: StationStock = new StationStock();
     const cargo: Cargo = new Cargo();
     cargo.add(RESOURCE.Copper, 30);
-    cargo.add(RESOURCE.Gem, 2);
+    cargo.add(RESOURCE.Tin, 6);
 
     const moved: number = stock.unload(cargo);
 
-    expect(moved).toBe(32);
+    expect(moved).toBe(36);
     expect(cargo.total).toBe(0);
     expect(stock.oreOf(RESOURCE.Copper)).toBe(30);
-    expect(stock.gems).toBe(2);
+    expect(stock.oreOf(RESOURCE.Tin)).toBe(6);
   });
 
   it("하역하면 화물칸 압박이 풀린다", () => {
@@ -44,52 +87,94 @@ describe("하역", () => {
 describe("제련", () => {
   it("광석을 주괴로 바꾸고 부피가 준다", () => {
     const stock: StationStock = new StationStock();
-    const cargo: Cargo = new Cargo();
-    cargo.add(RESOURCE.Copper, 20);
-    stock.unload(cargo);
+    stockOre(stock, RESOURCE.Copper, 20);
 
     const produced: number = stock.smeltAll();
 
     expect(produced).toBe(20 / SMELTING.OrePerIngot);
-    expect(stock.ingotsOf(RESOURCE.Copper)).toBe(10);
+    expect(stock.ingotsOf(RESOURCE.Copper)).toBe(5);
     expect(stock.oreOf(RESOURCE.Copper)).toBe(0);
   });
 
   it("주괴 하나에 못 미치는 나머지는 광석으로 남는다", () => {
     const stock: StationStock = new StationStock();
-    const cargo: Cargo = new Cargo();
-    cargo.add(RESOURCE.Copper, 5);
-    stock.unload(cargo);
+    stockOre(stock, RESOURCE.Copper, SMELTING.OrePerIngot + 1);
 
     stock.smeltAll();
 
-    expect(stock.ingotsOf(RESOURCE.Copper)).toBe(2);
+    expect(stock.ingotsOf(RESOURCE.Copper)).toBe(1);
     expect(stock.oreOf(RESOURCE.Copper)).toBe(1);
   });
 
   it("제련할 광석이 없으면 아무것도 만들어지지 않는다", () => {
-    const stock: StationStock = new StationStock();
+    expect(new StationStock().smeltAll()).toBe(0);
+  });
+});
 
-    expect(stock.smeltAll()).toBe(0);
+describe("합금", () => {
+  it("짝인 주괴를 합쳐 합금이 된다", () => {
+    const stock: StationStock = new StationStock();
+    stockIngots(stock, RESOURCE.Copper, SMELTING.PrimaryIngotPerAlloy);
+    stockIngots(stock, RESOURCE.Tin, SMELTING.PairIngotPerAlloy);
+
+    const produced: number = stock.alloyAll();
+
+    expect(produced).toBe(1);
+    expect(stock.alloysOf(ALLOY.Bronze)).toBe(1);
+    expect(stock.ingotsOf(RESOURCE.Copper)).toBe(0);
+    expect(stock.ingotsOf(RESOURCE.Tin)).toBe(0);
+  });
+
+  it("짝이 없으면 합금이 나오지 않는다 — 주광물만 캐서는 못 만든다", () => {
+    const stock: StationStock = new StationStock();
+    stockIngots(stock, RESOURCE.Copper, 30);
+
+    expect(stock.alloyAll()).toBe(0);
+    expect(stock.alloysOf(ALLOY.Bronze)).toBe(0);
+    expect(stock.ingotsOf(RESOURCE.Copper)).toBe(30);
+  });
+
+  it("네 쌍이 각자 자기 합금이 된다", () => {
+    const stock: StationStock = new StationStock();
+    for (const alloy of Object.values(ALLOY)) {
+      const entry = ALLOY_DEFINITIONS[alloy];
+      stockIngots(stock, entry.primary, SMELTING.PrimaryIngotPerAlloy);
+      stockIngots(stock, entry.pair, SMELTING.PairIngotPerAlloy);
+    }
+
+    stock.alloyAll();
+
+    for (const alloy of Object.values(ALLOY)) {
+      expect(stock.alloysOf(alloy)).toBe(1);
+    }
   });
 });
 
 describe("판매", () => {
-  it("보석이 광석보다 훨씬 값이 높다 — 광물 판매를 강요하지 않는다", () => {
-    expect(SELL_PRICE.Gem).toBeGreaterThan(SELL_PRICE.Ore * 20);
+  it("주괴가 광석보다 비싸다 — 제련한 만큼 값이 붙는다", () => {
+    expect(SELL_PRICE.Ingot).toBeGreaterThan(SELL_PRICE.Ore * SMELTING.OrePerIngot);
   });
 
-  it("보석을 팔면 화폐가 된다", () => {
+  it("광석을 팔면 화폐가 된다", () => {
     const stock: StationStock = new StationStock();
-    const cargo: Cargo = new Cargo();
-    cargo.add(RESOURCE.Gem, 3);
-    stock.unload(cargo);
+    stockOre(stock, RESOURCE.Copper, 10);
 
-    const earned: number = stock.sellGems();
+    const earned: number = stock.sellOre();
 
-    expect(earned).toBe(3 * SELL_PRICE.Gem);
+    expect(earned).toBe(10 * SELL_PRICE.Ore);
     expect(stock.credits).toBe(earned);
-    expect(stock.gems).toBe(0);
+    expect(stock.totalOre).toBe(0);
+  });
+
+  it("앞으로 쓸 주괴는 팔지 않는다", () => {
+    const stock: StationStock = new StationStock();
+    const equipment: ShipEquipment = new ShipEquipment(1, 0);
+    stockIngots(stock, RESOURCE.Copper, 10);
+
+    stock.sellSpareIngots(equipment);
+
+    // 구리는 T1 재료이자 청동의 재료다. 팔면 안 된다.
+    expect(stock.ingotsOf(RESOURCE.Copper)).toBe(10);
   });
 });
 
@@ -99,7 +184,7 @@ describe("업그레이드", () => {
     const equipment: ShipEquipment = new ShipEquipment(1, 0);
     stockIngots(stock, RESOURCE.Copper, 100);
 
-    // 보석과 크레딧이 없다.
+    // 크레딧이 없다.
     const result = stock.upgradeLaser(equipment);
 
     expect(result.isSuccess).toBe(false);
@@ -112,39 +197,28 @@ describe("업그레이드", () => {
     const equipment: ShipEquipment = new ShipEquipment(1, 0);
     const cost = upgradeCostFor(1, 1);
 
-    const cargo: Cargo = new Cargo();
-    cargo.add(RESOURCE.Copper, cost.ingots * SMELTING.OrePerIngot);
-    cargo.add(RESOURCE.Gem, cost.gems + 2);
-    stock.unload(cargo);
-    stock.smeltAll();
-    stock.sellGems();
-
-    // 보석을 다 팔았으므로 다시 채운다. 크레딧은 그대로 남는다.
-    const gemCargo: Cargo = new Cargo();
-    gemCargo.add(RESOURCE.Gem, cost.gems);
-    stock.unload(gemCargo);
+    stockIngots(stock, RESOURCE.Copper, cost.amount);
+    stockOre(stock, RESOURCE.Iron, Math.ceil(cost.credits / SELL_PRICE.Ore));
+    stock.sellOre();
 
     const result = stock.upgradeLaser(equipment);
 
     expect(result.isSuccess).toBe(true);
     expect(equipment.laserUpgrade).toBe(1);
     expect(stock.ingotsOf(RESOURCE.Copper)).toBe(0);
-    expect(stock.gems).toBe(0);
   });
 
   it("단계가 오를수록 비용이 커진다", () => {
     const first = upgradeCostFor(1, 1);
     const second = upgradeCostFor(1, 2);
 
-    expect(second.ingots).toBeGreaterThan(first.ingots);
-    expect(second.gems).toBeGreaterThan(first.gems);
+    expect(second.amount).toBeGreaterThan(first.amount);
     expect(second.credits).toBeGreaterThan(first.credits);
   });
 
-  it("강화 비용은 현재 티어의 광물을 요구한다", () => {
-    expect(upgradeCostFor(1, 1).mineral).toBe(RESOURCE.Copper);
-    expect(upgradeCostFor(2, 1).mineral).toBe(RESOURCE.Iron);
-    expect(upgradeCostFor(3, 1).mineral).toBe(RESOURCE.Titanium);
+  it("강화 비용은 현재 티어의 재료를 요구한다", () => {
+    expect(upgradeCostFor(1, 1).material).toEqual(materialForTier(1));
+    expect(upgradeCostFor(2, 1).material).toEqual(materialForTier(2));
   });
 
   it("최대 강화 상태에서는 더 올리지 않는다", () => {
@@ -158,8 +232,23 @@ describe("업그레이드", () => {
   });
 });
 
-describe("티어 제작", () => {
-  it("주괴가 모자라면 제작되지 않고 소비도 없다", () => {
+describe("티어 체인", () => {
+  it("순수 금속과 합금이 번갈아 놓인다", () => {
+    for (let tier = 1; tier <= MAX_LASER_TIER; tier += 1) {
+      const expected: "INGOT" | "ALLOY" = tier % 2 === 1 ? "INGOT" : "ALLOY";
+      expect(materialForTier(tier).kind).toBe(expected);
+    }
+  });
+
+  it("합금 티어가 다음 광물 쌍을 연다", () => {
+    // T2 청동 레이저가 철을 열고, T4 니켈강이 티타늄을, T6 티타늄 합금이
+    // 이리듐을 연다. 이 대응이 깨지면 진행이 막힌다.
+    expect(MINERAL_DEFINITIONS[RESOURCE.Iron].requiredLaserTier).toBe(2);
+    expect(MINERAL_DEFINITIONS[RESOURCE.Titanium].requiredLaserTier).toBe(4);
+    expect(MINERAL_DEFINITIONS[RESOURCE.Iridium].requiredLaserTier).toBe(6);
+  });
+
+  it("재료가 모자라면 제작되지 않고 소비도 없다", () => {
     const stock: StationStock = new StationStock();
     const equipment: ShipEquipment = new ShipEquipment(1, 0);
     stockIngots(stock, RESOURCE.Copper, 100);
@@ -171,11 +260,13 @@ describe("티어 제작", () => {
     expect(stock.ingotsOf(RESOURCE.Copper)).toBe(100);
   });
 
-  it("주괴가 충분하면 상위 티어로 갈아 끼우고 강화는 초기화된다", () => {
+  it("합금이 있으면 다음 티어로 갈아 끼우고 강화는 초기화된다", () => {
     const stock: StationStock = new StationStock();
     const equipment: ShipEquipment = new ShipEquipment(1, 3);
-    stockIngots(stock, RESOURCE.Copper, 60);
-    stockIngots(stock, RESOURCE.Iron, 40);
+    const cost = craftCostFor(2);
+    expect(cost).not.toBeNull();
+
+    stockMaterial(stock, 2, cost?.amount ?? 0);
 
     const result = stock.craftNextLaser(equipment);
 
@@ -186,57 +277,54 @@ describe("티어 제작", () => {
 
   it("최대 티어에서는 더 제작되지 않는다", () => {
     const stock: StationStock = new StationStock();
-    const equipment: ShipEquipment = new ShipEquipment(3, 0);
+    const equipment: ShipEquipment = new ShipEquipment(MAX_LASER_TIER, 0);
 
     expect(stock.craftNextLaser(equipment).isSuccess).toBe(false);
   });
 
-  it("상위 티어일수록 여러 종의 주괴를 요구한다", () => {
+  it("견인빔도 같은 재료 체계를 쓴다", () => {
     const stock: StationStock = new StationStock();
-    const tierTwo: ShipEquipment = new ShipEquipment(1, 0);
-    const tierThree: ShipEquipment = new ShipEquipment(2, 0);
+    const equipment: ShipEquipment = new ShipEquipment(1, 0, 1);
+    const cost = craftCostFor(2);
 
-    // 재료가 없을 때의 안내 문구로 요구 종류를 확인한다.
-    expect(stock.craftNextLaser(tierTwo).message).toContain(
-      MINERAL_DEFINITIONS[RESOURCE.Iron].displayName,
-    );
-    expect(stock.craftNextLaser(tierThree).message).toContain(
-      MINERAL_DEFINITIONS[RESOURCE.Titanium].displayName,
-    );
+    stockMaterial(stock, 2, cost?.amount ?? 0);
+    const before: number = equipment.tractorCapacity;
+
+    const result = stock.upgradeTractor(equipment);
+
+    expect(result.isSuccess).toBe(true);
+    expect(equipment.tractorCapacity).toBeGreaterThan(before);
   });
 });
 
 describe("진행 순환", () => {
-  it("구리만 캐서는 철을 캘 수 없고, 강화를 거쳐야 잠금이 풀린다", () => {
+  it("구리만 캐서는 철을 캘 수 없고, 강화로 주석을 연 뒤 청동을 거쳐야 한다", () => {
     const stock: StationStock = new StationStock();
     const equipment: ShipEquipment = new ShipEquipment(1, 0);
+    const tin = MINERAL_DEFINITIONS[RESOURCE.Tin];
     const iron = MINERAL_DEFINITIONS[RESOURCE.Iron];
 
+    // 처음에는 구리만 캘 수 있다.
+    expect(equipment.evaluateMining(MINERAL_DEFINITIONS[RESOURCE.Copper]).isAllowed).toBe(
+      true,
+    );
+    expect(equipment.evaluateMining(tin).isAllowed).toBe(false);
     expect(equipment.evaluateMining(iron).isAllowed).toBe(false);
 
-    // 구리와 보석을 충분히 모아 강화를 요구 수준까지 올린다.
-    for (let level = 1; level <= iron.requiredLaserUpgrade; level += 1) {
+    // 구리를 캐서 강화를 올리면 주석이 열린다.
+    for (let level = 1; level <= tin.requiredLaserUpgrade; level += 1) {
       const cost = upgradeCostFor(1, level);
-      const cargo: Cargo = new Cargo();
-      cargo.add(RESOURCE.Copper, cost.ingots * SMELTING.OrePerIngot);
-      stock.unload(cargo);
-      stock.smeltAll();
-
-      const gemCargo: Cargo = new Cargo();
-      gemCargo.add(RESOURCE.Gem, cost.gems + Math.ceil(cost.credits / SELL_PRICE.Gem));
-      stock.unload(gemCargo);
-      // 필요한 만큼만 팔아 크레딧을 만들고 나머지는 재료로 남긴다.
-      const gemsToKeep: number = cost.gems;
-      const gemsHeld: number = stock.gems;
-      const cargoBack: Cargo = new Cargo();
-      cargoBack.add(RESOURCE.Gem, gemsToKeep);
-      stock.sellGems();
-      stock.unload(cargoBack);
-      expect(gemsHeld).toBeGreaterThanOrEqual(gemsToKeep);
-
+      stockIngots(stock, RESOURCE.Copper, cost.amount);
+      stockOre(stock, RESOURCE.Copper, Math.ceil(cost.credits / SELL_PRICE.Ore));
+      stock.sellOre();
       expect(stock.upgradeLaser(equipment).isSuccess).toBe(true);
     }
+    expect(equipment.evaluateMining(tin).isAllowed).toBe(true);
 
+    // 주석까지 캐면 청동을 만들 수 있고, 청동으로 T2 를 제작하면 철이 열린다.
+    const craftCost = craftCostFor(2);
+    stockMaterial(stock, 2, craftCost?.amount ?? 0);
+    expect(stock.craftNextLaser(equipment).isSuccess).toBe(true);
     expect(equipment.evaluateMining(iron).isAllowed).toBe(true);
   });
 });

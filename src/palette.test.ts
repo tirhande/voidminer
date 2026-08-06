@@ -23,18 +23,34 @@ function channelDistance(first: number, second: number): number {
 }
 
 describe("팔레트", () => {
-  it("자원색은 서로 구분된다", () => {
-    const resources = [RESOURCE.Copper, RESOURCE.Iron, RESOURCE.Titanium, RESOURCE.Gem];
+  it("주광물 넷은 서로 구분된다", () => {
+    const primaries = [
+      RESOURCE.Copper,
+      RESOURCE.Iron,
+      RESOURCE.Titanium,
+      RESOURCE.Iridium,
+    ];
 
-    for (let first = 0; first < resources.length; first += 1) {
-      for (let second = first + 1; second < resources.length; second += 1) {
+    for (let first = 0; first < primaries.length; first += 1) {
+      for (let second = first + 1; second < primaries.length; second += 1) {
         const distance: number = channelDistance(
-          resourceColor(resources[first]),
-          resourceColor(resources[second]),
+          resourceColor(primaries[first]),
+          resourceColor(primaries[second]),
         );
-        // 정보색이므로 한눈에 갈려야 한다.
+        // 어느 집안인지가 한눈에 갈려야 한다.
         expect(distance).toBeGreaterThan(60);
       }
+    }
+  });
+
+  it("짝인 광물은 주광물과 구분된다", () => {
+    for (const mineral of Object.values(MINERAL_DEFINITIONS)) {
+      const distance: number = channelDistance(
+        mineral.color,
+        MINERAL_DEFINITIONS[mineral.pair].color,
+      );
+      // 같은 계열이되 주광물인지 부광물인지는 갈려야 한다.
+      expect(distance).toBeGreaterThan(60);
     }
   });
 

@@ -3,44 +3,40 @@ import * as THREE from "three";
 import { ASTEROID_FIELD } from "../constants";
 import { Asteroid } from "./asteroid";
 import {
-  ASTEROID_SIZE,
-  ASTEROID_SIZE_DEFINITIONS,
   MINERAL_DEFINITIONS,
-  type AsteroidSize,
-  type AsteroidSizeDefinition,
+  MINERAL_ORDER,
+  sizeForMineral,
+  type MineralId,
 } from "./minerals";
 import { createSeededRandom, randomInRange, type RandomSource } from "./seeded-random";
 
-/**
- * 크기 등급의 출현 비중.
- *
- * 낮은 티어는 흔하고 높은 티어는 드물다 (GDD 02). 큰 소행성이 귀해야 발견에
- * 의미가 생긴다.
- */
-const SIZE_WEIGHTS: ReadonlyArray<{ size: AsteroidSize; weight: number }> = [
-  { size: ASTEROID_SIZE.Small, weight: 0.55 },
-  { size: ASTEROID_SIZE.Medium, weight: 0.3 },
-  { size: ASTEROID_SIZE.Large, weight: 0.15 },
-];
-
 /** 재생을 기다리는 자리 하나. */
 type PendingRespawn = {
-  readonly sizeDefinition: AsteroidSizeDefinition;
+  readonly mineral: MineralId;
   readonly position: THREE.Vector3;
   remainingSeconds: number;
 };
 
-/** 가중치에 따라 크기 등급을 하나 고른다. */
-function pickSize(random: RandomSource): AsteroidSize {
-  const roll: number = random();
-  let cumulative: number = 0;
-  for (const entry of SIZE_WEIGHTS) {
-    cumulative += entry.weight;
-    if (roll < cumulative) {
-      return entry.size;
+/** 분포 가중치의 합. 광물 하나를 고를 때 쓴다. */
+const TOTAL_ABUNDANCE: number = MINERAL_ORDER.reduce(
+  (total, mineral) => total + MINERAL_DEFINITIONS[mineral].abundance,
+  0,
+);
+
+/**
+ * 분포에 따라 광물을 하나 고른다.
+ *
+ * 티어와 분포는 별개 속성이다 (GDD 02). 철은 상위 티어인데 가장 흔하다.
+ */
+function pickMineral(random: RandomSource): MineralId {
+  let roll: number = random() * TOTAL_ABUNDANCE;
+  for (const mineral of MINERAL_ORDER) {
+    roll -= MINERAL_DEFINITIONS[mineral].abundance;
+    if (roll <= 0) {
+      return mineral;
     }
   }
-  return ASTEROID_SIZE.Small;
+  return MINERAL_ORDER[0];
 }
 
 /**
@@ -66,8 +62,8 @@ export class AsteroidField {
     const position: THREE.Vector3 = new THREE.Vector3();
 
     for (let index = 0; index < ASTEROID_FIELD.Count; index += 1) {
-      const size: AsteroidSize = pickSize(this.random);
-      const sizeDefinition: AsteroidSizeDefinition = ASTEROID_SIZE_DEFINITIONS[size];
+      const mineral: MineralId = pickMineral(this.random);
+      const radius: number = sizeForMineral(mineral).radius;
 
       // 시작 지점 주변은 비워둔다. 스폰하자마자 소행성에 파묻히면 안 된다.
       let attempts: number = 0;
@@ -79,12 +75,11 @@ export class AsteroidField {
         );
         attempts += 1;
       } while (
-        position.distanceTo(origin) <
-          ASTEROID_FIELD.SpawnClearance + sizeDefinition.radius &&
+        position.distanceTo(origin) < ASTEROID_FIELD.SpawnClearance + radius &&
         attempts < 12
       );
 
-      this.spawn(sizeDefinition, position);
+      this.spawn(mineral, position);
     }
   }
 
@@ -128,7 +123,7 @@ export class AsteroidField {
 
       // 광물마다 재생 시간이 다르다. 하위는 금방 돌아오고 상위는 오래 걸린다.
       this.pending.push({
-        sizeDefinition: ASTEROID_SIZE_DEFINITIONS[asteroid.sizeName],
+        mineral: asteroid.mineral.id,
         position: asteroid.position.clone(),
         remainingSeconds: asteroid.mineral.respawnSeconds,
       });
@@ -164,15 +159,14 @@ export class AsteroidField {
           ).multiplyScalar(ASTEROID_FIELD.RespawnScatter),
         );
 
-      this.spawn(entry.sizeDefinition, scattered);
+      this.spawn(entry.mineral, scattered);
       this.pending.splice(index, 1);
     }
   }
 
-  private spawn(sizeDefinition: AsteroidSizeDefinition, position: THREE.Vector3): void {
+  private spawn(mineral: MineralId, position: THREE.Vector3): void {
     const asteroid: Asteroid = new Asteroid(
-      sizeDefinition,
-      MINERAL_DEFINITIONS[sizeDefinition.mineral],
+      MINERAL_DEFINITIONS[mineral],
       position,
       Math.floor(this.random() * 100000),
     );

@@ -1,15 +1,20 @@
 import type * as THREE from "three";
 
-import { TRACTOR_BEAM } from "../constants";
+import { SMELTING } from "../constants";
 import type { Cargo } from "./cargo";
 import { MAX_UPGRADE_LEVEL, type ShipEquipment } from "./equipment";
 import type { FlightInputState } from "./flight-input";
-import { MINERAL_DEFINITIONS, RESOURCE, type MineralId } from "./minerals";
+import {
+  ALLOY_DEFINITIONS,
+  ALLOY_ORDER,
+  MINERAL_DEFINITIONS,
+  MINERAL_ORDER,
+} from "./minerals";
 import type { Station } from "./station";
 import {
   MAX_LASER_TIER,
   craftCostFor,
-  mineralForTier,
+  materialName,
   upgradeCostFor,
   type CraftCost,
   type StationActionResult,
@@ -33,24 +38,14 @@ export type StationAction = {
 
 /** HUD 가 그릴 거점 화면의 내용. */
 export type StationView = {
-  /** 도킹 중인지 */
   readonly isDocked: boolean;
   /** 도킹 안내를 띄울지 — 범위 안이지만 아직 도킹하지 않은 상태 */
   readonly isDockPromptVisible: boolean;
-  /** 거점까지의 거리 (m) */
   readonly distance: number;
   readonly stock: ReadonlyArray<StationLine>;
   readonly actions: ReadonlyArray<StationAction>;
-  /** 마지막 작업 결과 */
   readonly message: string;
 };
-
-/** 광물 목록. 표시 순서를 고정하기 위해 배열로 둔다. */
-const MINERAL_ORDER: ReadonlyArray<MineralId> = [
-  RESOURCE.Copper,
-  RESOURCE.Iron,
-  RESOURCE.Titanium,
-];
 
 /**
  * 거점 콘솔.
@@ -102,8 +97,8 @@ export class StationConsole {
       isDocked: this.docked,
       isDockPromptVisible: !this.docked && isInRange,
       distance,
-      stock: this.describeStock(stock),
-      actions: this.describeActions(cargo, stock, equipment),
+      stock: describeStock(stock),
+      actions: describeActions(cargo, stock, equipment),
       message: this.lastMessage,
     };
   }
@@ -121,17 +116,19 @@ export class StationConsole {
 
     if (input.pressedOnce.has("Digit2")) {
       const produced: number = stock.smeltAll();
-      this.lastMessage = produced > 0 ? `주괴 ${produced} 제련` : "제련할 광석이 모자라다";
+      this.lastMessage =
+        produced > 0 ? `주괴 ${produced} 제련` : "제련할 광석이 모자라다";
     }
 
     if (input.pressedOnce.has("Digit3")) {
-      const earned: number = stock.sellGems();
-      this.lastMessage = earned > 0 ? `보석 판매 ${earned} 크레딧` : "팔 보석이 없다";
+      const produced: number = stock.alloyAll();
+      this.lastMessage =
+        produced > 0 ? `합금 ${produced} 생산` : "짝인 주괴가 모자라다";
     }
 
     if (input.pressedOnce.has("Digit4")) {
-      const earned: number = stock.sellOre();
-      this.lastMessage = earned > 0 ? `광석 판매 ${earned} 크레딧` : "팔 광석이 없다";
+      const earned: number = stock.sellOre() + stock.sellSpareIngots(equipment);
+      this.lastMessage = earned > 0 ? `판매 ${earned} 크레딧` : "팔 것이 없다";
     }
 
     if (input.pressedOnce.has("Digit5")) {
@@ -149,128 +146,118 @@ export class StationConsole {
       this.lastMessage = result.message;
     }
   }
-
-  private describeStock(stock: StationStock): StationLine[] {
-    const lines: StationLine[] = [];
-
-    for (const mineral of MINERAL_ORDER) {
-      const ore: number = stock.oreOf(mineral);
-      const ingots: number = stock.ingotsOf(mineral);
-      if (ore === 0 && ingots === 0) {
-        continue;
-      }
-      lines.push({
-        label: MINERAL_DEFINITIONS[mineral].displayName,
-        value: `광석 ${ore} / 주괴 ${ingots}`,
-      });
-    }
-
-    lines.push({ label: "보석", value: `${stock.gems}` });
-    lines.push({ label: "크레딧", value: `${stock.credits}` });
-
-    return lines;
-  }
-
-  private describeActions(
-    cargo: Cargo,
-    stock: StationStock,
-    equipment: ShipEquipment,
-  ): StationAction[] {
-    const isMaxUpgrade: boolean = equipment.laserUpgrade >= MAX_UPGRADE_LEVEL;
-    const upgradeCost: UpgradeCost = upgradeCostFor(
-      equipment.laserTier,
-      Math.min(equipment.laserUpgrade + 1, MAX_UPGRADE_LEVEL),
-    );
-    const upgradeMineralName: string = MINERAL_DEFINITIONS[upgradeCost.mineral].displayName;
-
-    const nextTractorTier: number = equipment.tractorTier + 1;
-    const tractorCost: CraftCost | null = craftCostFor(nextTractorTier);
-
-    const nextTier: number = equipment.laserTier + 1;
-    const craftCost: CraftCost | null = craftCostFor(nextTier);
-    const craftDetail: string =
-      craftCost === null || nextTier > MAX_LASER_TIER
-        ? "더 높은 티어가 없다"
-        : craftCost.ingots
-            .map(
-              (entry) =>
-                `${MINERAL_DEFINITIONS[entry.mineral].displayName} 주괴 ${entry.amount}`,
-            )
-            .join(" + ");
-
-    return [
-      {
-        key: "1",
-        label: "하역",
-        detail: `화물 ${Math.floor(cargo.total)}`,
-        isAvailable: cargo.total > 0,
-      },
-      {
-        key: "2",
-        label: "제련",
-        detail: `광석 ${stock.totalOre}`,
-        isAvailable: stock.totalOre > 0,
-      },
-      {
-        key: "3",
-        label: "보석 판매",
-        detail: `${stock.gems}개`,
-        isAvailable: stock.gems > 0,
-      },
-      {
-        key: "4",
-        label: "광석 판매",
-        detail: `${stock.totalOre}단위`,
-        isAvailable: stock.totalOre > 0,
-      },
-      {
-        key: "5",
-        label: isMaxUpgrade ? "강화 (최대)" : `강화 ${equipment.laserUpgrade + 1}`,
-        detail: isMaxUpgrade
-          ? "다음 티어를 제작해야 한다"
-          : `${upgradeMineralName} 주괴 ${upgradeCost.ingots} + 보석 ${upgradeCost.gems} + ${upgradeCost.credits} 크레딧`,
-        isAvailable:
-          !isMaxUpgrade &&
-          stock.ingotsOf(upgradeCost.mineral) >= upgradeCost.ingots &&
-          stock.gems >= upgradeCost.gems &&
-          stock.credits >= upgradeCost.credits,
-      },
-      {
-        key: "6",
-        label: nextTier > MAX_LASER_TIER ? "제작 (최대 티어)" : `레이저 T${nextTier} 제작`,
-        detail: craftDetail,
-        isAvailable:
-          craftCost !== null &&
-          craftCost.ingots.every(
-            (entry) => stock.ingotsOf(entry.mineral) >= entry.amount,
-          ),
-      },
-      {
-        key: "7",
-        label:
-          nextTractorTier > MAX_LASER_TIER
-            ? "견인빔 (최대 티어)"
-            : `견인빔 T${nextTractorTier} 제작`,
-        detail:
-          tractorCost === null
-            ? "더 높은 티어가 없다"
-            : `${tractorCost.ingots
-                .map(
-                  (entry) =>
-                    `${MINERAL_DEFINITIONS[entry.mineral].displayName} 주괴 ${entry.amount}`,
-                )
-                .join(" + ")} · 동시 ${equipment.tractorCapacity} → ${equipment.tractorCapacity + TRACTOR_BEAM.CapacityPerTier}`,
-        isAvailable:
-          tractorCost !== null &&
-          tractorCost.ingots.every(
-            (entry) => stock.ingotsOf(entry.mineral) >= entry.amount,
-          ),
-      },
-    ];
-  }
 }
 
-/** 현재 레이저 티어에 대응하는 광물 이름. HUD 표시에 쓴다. */
-export function currentTierMineralName(equipment: ShipEquipment): string {
-  return MINERAL_DEFINITIONS[mineralForTier(equipment.laserTier)].displayName;
+/** 저장고 현황을 줄 단위로 만든다. 보유량이 0인 항목은 감춘다. */
+function describeStock(stock: StationStock): StationLine[] {
+  const lines: StationLine[] = [];
+
+  for (const mineral of MINERAL_ORDER) {
+    const ore: number = stock.oreOf(mineral);
+    const ingots: number = stock.ingotsOf(mineral);
+    if (ore === 0 && ingots === 0) {
+      continue;
+    }
+    lines.push({
+      label: MINERAL_DEFINITIONS[mineral].displayName,
+      value: `광석 ${ore} / 주괴 ${ingots}`,
+    });
+  }
+
+  for (const alloy of ALLOY_ORDER) {
+    const count: number = stock.alloysOf(alloy);
+    if (count === 0) {
+      continue;
+    }
+    lines.push({ label: ALLOY_DEFINITIONS[alloy].displayName, value: `${count}` });
+  }
+
+  lines.push({ label: "크레딧", value: `${stock.credits}` });
+  return lines;
+}
+
+/** 거점에서 할 수 있는 일과 각각의 비용을 만든다. */
+function describeActions(
+  cargo: Cargo,
+  stock: StationStock,
+  equipment: ShipEquipment,
+): StationAction[] {
+  const isMaxUpgrade: boolean = equipment.laserUpgrade >= MAX_UPGRADE_LEVEL;
+  const upgradeCost: UpgradeCost = upgradeCostFor(
+    equipment.laserTier,
+    Math.min(equipment.laserUpgrade + 1, MAX_UPGRADE_LEVEL),
+  );
+
+  const nextLaserTier: number = equipment.laserTier + 1;
+  const laserCost: CraftCost | null = craftCostFor(nextLaserTier);
+  const nextTractorTier: number = equipment.tractorTier + 1;
+  const tractorCost: CraftCost | null = craftCostFor(nextTractorTier);
+
+  /** 제작 비용 한 줄을 만든다. */
+  function craftDetail(cost: CraftCost | null): string {
+    return cost === null
+      ? "더 높은 티어가 없다"
+      : `${materialName(cost.material)} ${cost.amount} (보유 ${stock.materialCount(cost.material)})`;
+  }
+
+  /** 재료가 충분한지 본다. */
+  function canCraft(cost: CraftCost | null): boolean {
+    return cost !== null && stock.materialCount(cost.material) >= cost.amount;
+  }
+
+  return [
+    {
+      key: "1",
+      label: "하역",
+      detail: `화물 ${Math.floor(cargo.total)}`,
+      isAvailable: cargo.total > 0,
+    },
+    {
+      key: "2",
+      label: "제련",
+      detail: `광석 ${stock.totalOre} · ${SMELTING.OrePerIngot}대1`,
+      isAvailable: stock.totalOre >= SMELTING.OrePerIngot,
+    },
+    {
+      key: "3",
+      label: "합금",
+      detail: `주괴 ${stock.totalIngots} · 주 ${SMELTING.PrimaryIngotPerAlloy} + 짝 ${SMELTING.PairIngotPerAlloy}`,
+      isAvailable: stock.totalIngots > 0,
+    },
+    {
+      key: "4",
+      label: "판매",
+      detail: "광석과 안 쓰는 주괴",
+      isAvailable: stock.totalOre > 0 || stock.totalIngots > 0,
+    },
+    {
+      key: "5",
+      label: isMaxUpgrade ? "강화 (최대)" : `강화 ${equipment.laserUpgrade + 1}`,
+      detail: isMaxUpgrade
+        ? "다음 티어를 제작해야 한다"
+        : `${materialName(upgradeCost.material)} ${upgradeCost.amount} + ${upgradeCost.credits} 크레딧`,
+      isAvailable:
+        !isMaxUpgrade &&
+        stock.materialCount(upgradeCost.material) >= upgradeCost.amount &&
+        stock.credits >= upgradeCost.credits,
+    },
+    {
+      key: "6",
+      label:
+        nextLaserTier > MAX_LASER_TIER
+          ? "레이저 (최대 티어)"
+          : `레이저 T${nextLaserTier} 제작`,
+      detail: craftDetail(laserCost),
+      isAvailable: canCraft(laserCost),
+    },
+    {
+      key: "7",
+      label:
+        nextTractorTier > MAX_LASER_TIER
+          ? "견인빔 (최대 티어)"
+          : `견인빔 T${nextTractorTier} 제작`,
+      detail: craftDetail(tractorCost),
+      isAvailable: canCraft(tractorCost),
+    },
+  ];
 }

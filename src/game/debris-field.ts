@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { DEBRIS, TRACTOR_BEAM } from "../constants";
 import type { Cargo } from "./cargo";
 import { EMISSION, SURFACE } from "../palette";
-import { RESOURCE, resourceColor, type ResourceId } from "./minerals";
+import { MINERAL_DEFINITIONS, resourceColor, type ResourceId } from "./minerals";
 
 /** 부유 중인 파편 하나. */
 type DebrisItem = {
@@ -72,8 +72,8 @@ export class DebrisField {
     const mesh: THREE.Mesh = new THREE.Mesh(this.geometry, this.materialFor(resource));
     mesh.position.copy(position);
     mesh.rotation.set(Math.random() * 6.28, Math.random() * 6.28, Math.random() * 6.28);
-    // 보석은 눈에 띄어야 한다. 광물 파편보다 조금 크게 만든다.
-    mesh.scale.setScalar(resource === RESOURCE.Gem ? 1.35 : 1);
+    // 부광물은 드물게 나오므로 조금 크게 만들어 눈에 띄게 한다.
+    mesh.scale.setScalar(MINERAL_DEFINITIONS[resource].isPrimary ? 1 : 1.3);
 
     const velocity: THREE.Vector3 = outward
       .clone()
@@ -200,7 +200,9 @@ export class DebrisField {
     const material: THREE.MeshStandardMaterial = new THREE.MeshStandardMaterial({
       color,
       emissive: color,
-      emissiveIntensity: resource === RESOURCE.Gem ? EMISSION.Gem : EMISSION.Debris,
+      emissiveIntensity: MINERAL_DEFINITIONS[resource].isPrimary
+        ? EMISSION.Debris
+        : EMISSION.Secondary,
       metalness: SURFACE.RockMetalness,
       roughness: SURFACE.RockRoughness,
       flatShading: true,

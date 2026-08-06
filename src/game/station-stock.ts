@@ -1,43 +1,60 @@
 import { SELL_PRICE, SMELTING, UPGRADE_COST } from "../constants";
 import type { Cargo } from "./cargo";
 import { MAX_UPGRADE_LEVEL, type ShipEquipment } from "./equipment";
-import { MINERAL_DEFINITIONS, RESOURCE, type MineralId } from "./minerals";
+import {
+  ALLOY,
+  ALLOY_DEFINITIONS,
+  MINERAL_DEFINITIONS,
+  MINERAL_ORDER,
+  RESOURCE,
+  type AlloyId,
+  type MineralId,
+} from "./minerals";
 
-/** 레이저 티어에 대응하는 광물. GDD 07 의 티어 대응 표를 그대로 옮겼다. */
-const TIER_MINERAL: ReadonlyArray<MineralId> = [
-  RESOURCE.Copper,
-  RESOURCE.Iron,
-  RESOURCE.Titanium,
+/** 티어 재료는 순수 주괴이거나 합금이다. */
+export type TierMaterial =
+  | { readonly kind: "INGOT"; readonly mineral: MineralId }
+  | { readonly kind: "ALLOY"; readonly alloy: AlloyId };
+
+/**
+ * 티어별 재료.
+ *
+ * GDD 07 의 티어 대응 표를 그대로 옮겼다. 순수 금속과 합금이 번갈아 놓이고,
+ * **합금 티어가 다음 광물 쌍을 연다.**
+ *
+ * 이것이 순환을 끊는 구조다. 티어만으로 잠그면 T2 광물을 캐려면 T2 레이저가
+ * 필요한데 T2 레이저의 재료가 그 광물이라 진행이 막힌다. 강화가 짝인 부광물을
+ * 열고, 그 짝으로 합금을 만들어 다음 티어로 넘어간다.
+ */
+const TIER_MATERIAL: ReadonlyArray<TierMaterial> = [
+  { kind: "INGOT", mineral: RESOURCE.Copper }, // T1
+  { kind: "ALLOY", alloy: ALLOY.Bronze }, // T2 — 철을 연다
+  { kind: "INGOT", mineral: RESOURCE.Iron }, // T3 — 성능만
+  { kind: "ALLOY", alloy: ALLOY.NickelSteel }, // T4 — 티타늄을 연다
+  { kind: "INGOT", mineral: RESOURCE.Titanium }, // T5 — 성능만
+  { kind: "ALLOY", alloy: ALLOY.TitaniumAlloy }, // T6 — 이리듐을 연다
+  { kind: "INGOT", mineral: RESOURCE.Iridium }, // T7 — 성능만
+  { kind: "ALLOY", alloy: ALLOY.PlatinumIridium }, // T8 — 최종
 ];
 
-/** 다음 티어 레이저를 만드는 데 드는 주괴. 상위일수록 여러 종을 요구한다. */
-const LASER_CRAFT_COST: Readonly<Record<number, ReadonlyArray<[MineralId, number]>>> = {
-  2: [
-    [RESOURCE.Iron, 10],
-    [RESOURCE.Copper, 24],
-  ],
-  3: [
-    [RESOURCE.Titanium, 12],
-    [RESOURCE.Iron, 24],
-    [RESOURCE.Copper, 36],
-  ],
-};
+/** 최고 장비 티어. */
+export const MAX_LASER_TIER = TIER_MATERIAL.length;
 
-/** 최고 레이저 티어. */
-export const MAX_LASER_TIER = 3;
+/** 티어를 하나 올리는 데 드는 재료 수. */
+const CRAFT_MATERIAL_COUNT = 8;
 
 /** 업그레이드 한 단계에 드는 비용. */
 export type UpgradeCost = {
-  readonly mineral: MineralId;
-  readonly ingots: number;
-  readonly gems: number;
+  readonly material: TierMaterial;
+  readonly amount: number;
   readonly credits: number;
 };
 
 /** 티어 제작에 드는 비용. */
 export type CraftCost = {
   readonly tier: number;
-  readonly ingots: ReadonlyArray<{ mineral: MineralId; amount: number }>;
+  readonly material: TierMaterial;
+  readonly amount: number;
 };
 
 /** 거점 작업의 결과. 실패한 경우 사유를 담는다. */
@@ -46,33 +63,35 @@ export type StationActionResult = {
   readonly message: string;
 };
 
-/** 레이저 티어에 대응하는 광물을 얻는다. */
-export function mineralForTier(tier: number): MineralId {
-  const index: number = Math.min(Math.max(tier, 1), TIER_MINERAL.length) - 1;
-  return TIER_MINERAL[index];
+/** 티어에 대응하는 재료를 얻는다. */
+export function materialForTier(tier: number): TierMaterial {
+  const index: number = Math.min(Math.max(tier, 1), MAX_LASER_TIER) - 1;
+  return TIER_MATERIAL[index];
+}
+
+/** 재료의 표시 이름을 얻는다. */
+export function materialName(material: TierMaterial): string {
+  return material.kind === "INGOT"
+    ? `${MINERAL_DEFINITIONS[material.mineral].displayName} 주괴`
+    : ALLOY_DEFINITIONS[material.alloy].displayName;
 }
 
 /** 지정한 강화 단계로 올리는 데 드는 비용을 계산한다. */
 export function upgradeCostFor(laserTier: number, nextLevel: number): UpgradeCost {
   const step: number = nextLevel - 1;
   return {
-    mineral: mineralForTier(laserTier),
-    ingots: UPGRADE_COST.IngotBase + UPGRADE_COST.IngotPerLevel * step,
-    gems: UPGRADE_COST.GemBase + UPGRADE_COST.GemPerLevel * step,
+    material: materialForTier(laserTier),
+    amount: UPGRADE_COST.MaterialBase + UPGRADE_COST.MaterialPerLevel * step,
     credits: UPGRADE_COST.CreditBase + UPGRADE_COST.CreditPerLevel * step,
   };
 }
 
-/** 지정한 티어 레이저를 만드는 데 드는 비용을 얻는다. */
+/** 지정한 티어를 만드는 데 드는 비용을 얻는다. */
 export function craftCostFor(tier: number): CraftCost | null {
-  const entries = LASER_CRAFT_COST[tier];
-  if (entries === undefined) {
+  if (tier < 2 || tier > MAX_LASER_TIER) {
     return null;
   }
-  return {
-    tier,
-    ingots: entries.map(([mineral, amount]) => ({ mineral, amount })),
-  };
+  return { tier, material: materialForTier(tier), amount: CRAFT_MATERIAL_COUNT };
 }
 
 /**
@@ -84,17 +103,12 @@ export function craftCostFor(tier: number): CraftCost | null {
 export class StationStock {
   private readonly ore: Map<MineralId, number> = new Map();
   private readonly ingots: Map<MineralId, number> = new Map();
-  private gemCount: number = 0;
+  private readonly alloys: Map<AlloyId, number> = new Map();
   private creditCount: number = 0;
 
   /** 보유 화폐. */
   public get credits(): number {
     return this.creditCount;
-  }
-
-  /** 보유 보석. */
-  public get gems(): number {
-    return this.gemCount;
   }
 
   /** 특정 광물의 광석 보유량. */
@@ -107,6 +121,11 @@ export class StationStock {
     return this.ingots.get(mineral) ?? 0;
   }
 
+  /** 특정 합금의 보유량. */
+  public alloysOf(alloy: AlloyId): number {
+    return this.alloys.get(alloy) ?? 0;
+  }
+
   /** 저장고에 쌓인 광석 총량. */
   public get totalOre(): number {
     let total: number = 0;
@@ -116,10 +135,25 @@ export class StationStock {
     return total;
   }
 
+  /** 저장고에 쌓인 주괴 총수. */
+  public get totalIngots(): number {
+    let total: number = 0;
+    for (const amount of this.ingots.values()) {
+      total += amount;
+    }
+    return total;
+  }
+
+  /** 티어 재료의 보유량을 얻는다. 주괴와 합금을 한 자리에서 처리한다. */
+  public materialCount(material: TierMaterial): number {
+    return material.kind === "INGOT"
+      ? this.ingotsOf(material.mineral)
+      : this.alloysOf(material.alloy);
+  }
+
   /**
    * 화물칸을 비워 저장고로 옮긴다.
    *
-   * @param cargo 비울 화물칸
    * @returns 옮긴 총량
    */
   public unload(cargo: Cargo): number {
@@ -129,11 +163,7 @@ export class StationStock {
       if (entry.amount <= 0) {
         continue;
       }
-      if (entry.resource === RESOURCE.Gem) {
-        this.gemCount += entry.amount;
-      } else {
-        this.ore.set(entry.resource, this.oreOf(entry.resource) + entry.amount);
-      }
+      this.ore.set(entry.resource, this.oreOf(entry.resource) + entry.amount);
       moved += entry.amount;
     }
 
@@ -142,7 +172,7 @@ export class StationStock {
   }
 
   /**
-   * 저장고의 광석을 전부 제련한다. 주괴로 바뀌지 못한 나머지는 광석으로 남는다.
+   * 광석을 전부 제련한다. 주괴가 되지 못한 나머지는 광석으로 남는다.
    *
    * @returns 만들어진 주괴 총수
    */
@@ -162,12 +192,42 @@ export class StationStock {
     return produced;
   }
 
-  /** 보석을 전부 판다. 반환값은 얻은 화폐다. */
-  public sellGems(): number {
-    const earned: number = this.gemCount * SELL_PRICE.Gem;
-    this.gemCount = 0;
-    this.creditCount += earned;
-    return earned;
+  /**
+   * 만들 수 있는 합금을 전부 만든다.
+   *
+   * 주광물 주괴 셋과 짝인 부광물 주괴 하나를 합친다. 짝을 캐지 않으면 합금이
+   * 나오지 않고, 합금이 없으면 다음 티어로 못 간다.
+   *
+   * @returns 만들어진 합금 총수
+   */
+  public alloyAll(): number {
+    let produced: number = 0;
+
+    for (const definition of Object.values(ALLOY_DEFINITIONS)) {
+      const possibleFromPrimary: number = Math.floor(
+        this.ingotsOf(definition.primary) / SMELTING.PrimaryIngotPerAlloy,
+      );
+      const possibleFromPair: number = Math.floor(
+        this.ingotsOf(definition.pair) / SMELTING.PairIngotPerAlloy,
+      );
+      const made: number = Math.min(possibleFromPrimary, possibleFromPair);
+      if (made <= 0) {
+        continue;
+      }
+
+      this.ingots.set(
+        definition.primary,
+        this.ingotsOf(definition.primary) - made * SMELTING.PrimaryIngotPerAlloy,
+      );
+      this.ingots.set(
+        definition.pair,
+        this.ingotsOf(definition.pair) - made * SMELTING.PairIngotPerAlloy,
+      );
+      this.alloys.set(definition.id, this.alloysOf(definition.id) + made);
+      produced += made;
+    }
+
+    return produced;
   }
 
   /** 남은 광석을 전부 판다. 반환값은 얻은 화폐다. */
@@ -175,6 +235,43 @@ export class StationStock {
     const earned: number = this.totalOre * SELL_PRICE.Ore;
     this.ore.clear();
     this.creditCount += earned;
+    return earned;
+  }
+
+  /**
+   * 지정한 광물의 주괴를 전부 판다.
+   *
+   * 제련한 만큼 값이 붙으므로 광석보다 낫다. 다만 주괴는 제작 재료이기도 하니
+   * 무엇을 팔지가 선택이 된다.
+   */
+  public sellIngots(mineral: MineralId): number {
+    const count: number = this.ingotsOf(mineral);
+    const earned: number = count * SELL_PRICE.Ingot;
+    this.ingots.set(mineral, 0);
+    this.creditCount += earned;
+    return earned;
+  }
+
+  /** 제작에 쓰이지 않는 주괴를 전부 판다. */
+  public sellSpareIngots(equipment: ShipEquipment): number {
+    const keep: Set<MineralId> = new Set<MineralId>();
+    for (let tier = equipment.laserTier; tier <= MAX_LASER_TIER; tier += 1) {
+      const material: TierMaterial = materialForTier(tier);
+      if (material.kind === "INGOT") {
+        keep.add(material.mineral);
+      } else {
+        keep.add(ALLOY_DEFINITIONS[material.alloy].primary);
+        keep.add(ALLOY_DEFINITIONS[material.alloy].pair);
+      }
+    }
+
+    let earned: number = 0;
+    for (const mineral of MINERAL_ORDER) {
+      if (keep.has(mineral)) {
+        continue;
+      }
+      earned += this.sellIngots(mineral);
+    }
     return earned;
   }
 
@@ -193,18 +290,12 @@ export class StationStock {
       equipment.laserTier,
       equipment.laserUpgrade + 1,
     );
-    const mineralName: string = MINERAL_DEFINITIONS[cost.mineral].displayName;
 
-    if (this.ingotsOf(cost.mineral) < cost.ingots) {
+    const held: number = this.materialCount(cost.material);
+    if (held < cost.amount) {
       return {
         isSuccess: false,
-        message: `${mineralName} 주괴 ${cost.ingots} 필요 (보유 ${this.ingotsOf(cost.mineral)})`,
-      };
-    }
-    if (this.gemCount < cost.gems) {
-      return {
-        isSuccess: false,
-        message: `보석 ${cost.gems} 필요 (보유 ${this.gemCount})`,
+        message: `${materialName(cost.material)} ${cost.amount} 필요 (보유 ${held})`,
       };
     }
     if (this.creditCount < cost.credits) {
@@ -214,15 +305,19 @@ export class StationStock {
       };
     }
 
-    this.ingots.set(cost.mineral, this.ingotsOf(cost.mineral) - cost.ingots);
-    this.gemCount -= cost.gems;
+    this.consumeMaterial(cost.material, cost.amount);
     this.creditCount -= cost.credits;
     equipment.upgradeLaser();
 
-    return {
-      isSuccess: true,
-      message: `채굴 레이저 강화 ${equipment.laserUpgrade}`,
-    };
+    return { isSuccess: true, message: `채굴 레이저 강화 ${equipment.laserUpgrade}` };
+  }
+
+  /** 다음 티어 채굴 레이저를 제작한다. */
+  public craftNextLaser(equipment: ShipEquipment): StationActionResult {
+    return this.craftTier(equipment.laserTier + 1, (tier) => {
+      equipment.replaceLaser(tier);
+      return `채굴 레이저 T${tier} 장착`;
+    });
   }
 
   /**
@@ -232,66 +327,38 @@ export class StationStock {
    * 지점이므로 올릴 수단이 있어야 한다 (GDD 02).
    */
   public upgradeTractor(equipment: ShipEquipment): StationActionResult {
-    const nextTier: number = equipment.tractorTier + 1;
-    const cost: CraftCost | null = craftCostFor(nextTier);
-
-    if (cost === null || nextTier > MAX_LASER_TIER) {
-      return { isSuccess: false, message: "더 높은 티어가 없다" };
-    }
-
-    for (const requirement of cost.ingots) {
-      const held: number = this.ingotsOf(requirement.mineral);
-      if (held < requirement.amount) {
-        const name: string = MINERAL_DEFINITIONS[requirement.mineral].displayName;
-        return {
-          isSuccess: false,
-          message: `${name} 주괴 ${requirement.amount} 필요 (보유 ${held})`,
-        };
-      }
-    }
-
-    for (const requirement of cost.ingots) {
-      this.ingots.set(
-        requirement.mineral,
-        this.ingotsOf(requirement.mineral) - requirement.amount,
-      );
-    }
-    equipment.upgradeTractor();
-
-    return {
-      isSuccess: true,
-      message: `견인빔 T${nextTier} 장착 (동시 ${equipment.tractorCapacity})`,
-    };
+    return this.craftTier(equipment.tractorTier + 1, (tier) => {
+      equipment.upgradeTractor();
+      return `견인빔 T${tier} 장착 (동시 ${equipment.tractorCapacity})`;
+    });
   }
 
-  /** 다음 티어 채굴 레이저를 제작한다. */
-  public craftNextLaser(equipment: ShipEquipment): StationActionResult {
-    const nextTier: number = equipment.laserTier + 1;
+  private craftTier(
+    nextTier: number,
+    apply: (tier: number) => string,
+  ): StationActionResult {
     const cost: CraftCost | null = craftCostFor(nextTier);
-
-    if (cost === null || nextTier > MAX_LASER_TIER) {
+    if (cost === null) {
       return { isSuccess: false, message: "더 높은 티어가 없다" };
     }
 
-    for (const requirement of cost.ingots) {
-      const held: number = this.ingotsOf(requirement.mineral);
-      if (held < requirement.amount) {
-        const name: string = MINERAL_DEFINITIONS[requirement.mineral].displayName;
-        return {
-          isSuccess: false,
-          message: `${name} 주괴 ${requirement.amount} 필요 (보유 ${held})`,
-        };
-      }
+    const held: number = this.materialCount(cost.material);
+    if (held < cost.amount) {
+      return {
+        isSuccess: false,
+        message: `${materialName(cost.material)} ${cost.amount} 필요 (보유 ${held})`,
+      };
     }
 
-    for (const requirement of cost.ingots) {
-      this.ingots.set(
-        requirement.mineral,
-        this.ingotsOf(requirement.mineral) - requirement.amount,
-      );
-    }
-    equipment.replaceLaser(nextTier);
+    this.consumeMaterial(cost.material, cost.amount);
+    return { isSuccess: true, message: apply(nextTier) };
+  }
 
-    return { isSuccess: true, message: `채굴 레이저 T${nextTier} 장착` };
+  private consumeMaterial(material: TierMaterial, amount: number): void {
+    if (material.kind === "INGOT") {
+      this.ingots.set(material.mineral, this.ingotsOf(material.mineral) - amount);
+    } else {
+      this.alloys.set(material.alloy, this.alloysOf(material.alloy) - amount);
+    }
   }
 }

@@ -29,11 +29,27 @@ export const PALETTE = {
   /** 막힘 — 캘 수 없는 광물 */
   Locked: 0xff3b3b,
 
-  /** 광물색 */
-  Copper: 0xc87b4a,
-  Iron: 0x9aa7b8,
-  Titanium: 0x8fd8ef,
-  Gem: 0xc07de8,
+  /**
+   * 광물색.
+   *
+   * 주광물 넷은 색 계열이 확실히 갈리고, 짝인 부광물은 같은 계열의 밝은 쪽을
+   * 쓴다. 소행성을 보면 어느 집안인지가 먼저 읽히고, 주광물인지 부광물인지는
+   * 밝기로 갈린다.
+   */
+  Copper: 0xc8703a,
+  Tin: 0xe0c9a8,
+  Iron: 0x8794a6,
+  Nickel: 0xc8d4e0,
+  Titanium: 0x7fd0e8,
+  Aluminum: 0xbfeaf6,
+  Iridium: 0xd8c2f0,
+  Platinum: 0xf0e6ff,
+
+  /** 합금색. 짝인 두 광물 사이에 놓는다 */
+  Bronze: 0xb08040,
+  NickelSteel: 0xa8b4c4,
+  TitaniumAlloy: 0x9fe0f0,
+  PlatinumIridium: 0xe6d8ff,
 } as const;
 
 /**
@@ -51,7 +67,7 @@ export const POST_PROCESSING = {
    * 이 밝기를 넘는 부분만 번진다.
    *
    * 낮추면 발광체가 아닌 것까지 번져 화면 전체가 뿌옇게 밝아진다. 레이저나
-   * 보석처럼 실제로 빛나는 것만 걸리도록 높게 잡는다.
+   * 유도등처럼 실제로 빛나는 것만 걸리도록 높게 잡는다.
    */
   BloomThreshold: 0.75,
   /**
@@ -116,8 +132,8 @@ export const EMISSION = {
   Rock: 0.05,
   /** 광물 파편 */
   Debris: 0.3,
-  /** 보석 파편. 눈에 띄어야 하므로 조금 높다 */
-  Gem: 0.6,
+  /** 부광물 파편. 드물게 나오므로 눈에 띄어야 한다 */
+  Secondary: 0.55,
 } as const;
 
 /**
