@@ -21,6 +21,7 @@ type HudElements = {
   readonly cargoCapacity: HTMLElement;
   readonly cargoRows: HTMLElement;
   readonly equipmentLaser: HTMLElement;
+  readonly equipmentTractor: HTMLElement;
   readonly equipmentStation: HTMLElement;
   readonly dockPrompt: HTMLElement;
   readonly stationPanel: HTMLElement;
@@ -74,6 +75,7 @@ export class Hud {
       cargoCapacity: requireElement("cargo-capacity"),
       cargoRows: requireElement("cargo-rows"),
       equipmentLaser: requireElement("equipment-laser"),
+      equipmentTractor: requireElement("equipment-tractor"),
       equipmentStation: requireElement("equipment-station"),
       dockPrompt: requireElement("hud-dock-prompt"),
       stationPanel: requireElement("hud-station"),
@@ -102,6 +104,7 @@ export class Hud {
     input: FlightInputState,
     isEngaged: boolean,
     pulledDebrisCount: number,
+    tractorCapacity: number,
   ): void {
     const speedText: string = speed.toFixed(0).padStart(3, "0");
     if (speedText !== this.lastSpeedText) {
@@ -121,10 +124,10 @@ export class Hud {
       this.lastAssistText = assistText;
     }
 
-    // 몇 개를 붙잡았는지까지 보여준다. 0이면 사거리 밖이라는 뜻이므로
-    // 조작이 안 먹는 것과 구분된다.
+    // 붙잡은 수와 한도를 함께 보여준다. 한도에 닿아 있으면 회수가 병목이라는
+    // 뜻이고, 0 이면 사거리 밖이라 조작 문제와 구분된다.
     const tractorText: string = input.isTractorActive
-      ? `ON ${pulledDebrisCount}`
+      ? `${pulledDebrisCount}/${tractorCapacity}`
       : "OFF";
     if (tractorText !== this.lastTractorText) {
       this.elements.tractor.textContent = tractorText;
@@ -202,6 +205,11 @@ export class Hud {
     const laserText: string = `T${equipment.laserTier} +${equipment.laserUpgrade}`;
     if (this.elements.equipmentLaser.textContent !== laserText) {
       this.elements.equipmentLaser.textContent = laserText;
+    }
+
+    const tractorText: string = `T${equipment.tractorTier} (${equipment.tractorCapacity})`;
+    if (this.elements.equipmentTractor.textContent !== tractorText) {
+      this.elements.equipmentTractor.textContent = tractorText;
     }
 
     const distanceText: string = `${Math.round(stationDistance)}m`;

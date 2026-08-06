@@ -225,6 +225,45 @@ export class StationStock {
     };
   }
 
+  /**
+   * 견인빔을 다음 티어로 올린다.
+   *
+   * 레이저만 올리면 파편이 쏟아져도 회수가 따라가지 못한다. 두 계통이 갈리는
+   * 지점이므로 올릴 수단이 있어야 한다 (GDD 02).
+   */
+  public upgradeTractor(equipment: ShipEquipment): StationActionResult {
+    const nextTier: number = equipment.tractorTier + 1;
+    const cost: CraftCost | null = craftCostFor(nextTier);
+
+    if (cost === null || nextTier > MAX_LASER_TIER) {
+      return { isSuccess: false, message: "더 높은 티어가 없다" };
+    }
+
+    for (const requirement of cost.ingots) {
+      const held: number = this.ingotsOf(requirement.mineral);
+      if (held < requirement.amount) {
+        const name: string = MINERAL_DEFINITIONS[requirement.mineral].displayName;
+        return {
+          isSuccess: false,
+          message: `${name} 주괴 ${requirement.amount} 필요 (보유 ${held})`,
+        };
+      }
+    }
+
+    for (const requirement of cost.ingots) {
+      this.ingots.set(
+        requirement.mineral,
+        this.ingotsOf(requirement.mineral) - requirement.amount,
+      );
+    }
+    equipment.upgradeTractor();
+
+    return {
+      isSuccess: true,
+      message: `견인빔 T${nextTier} 장착 (동시 ${equipment.tractorCapacity})`,
+    };
+  }
+
   /** 다음 티어 채굴 레이저를 제작한다. */
   public craftNextLaser(equipment: ShipEquipment): StationActionResult {
     const nextTier: number = equipment.laserTier + 1;

@@ -170,6 +170,7 @@ function bootstrap(): void {
       ship.position,
       ship.velocity,
       flightInput.isTractorActive,
+      equipment.tractorCapacity,
       cargo,
     );
     tractorBeam.update(
@@ -195,6 +196,7 @@ function bootstrap(): void {
       flightInput,
       input.isEngaged,
       debrisField.pulledDebris.length,
+      equipment.tractorCapacity,
     );
     hud.updateAim(aimReport);
     hud.updateCargo(cargo);

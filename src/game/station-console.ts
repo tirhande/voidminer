@@ -1,5 +1,6 @@
 import type * as THREE from "three";
 
+import { TRACTOR_BEAM } from "../constants";
 import type { Cargo } from "./cargo";
 import { MAX_UPGRADE_LEVEL, type ShipEquipment } from "./equipment";
 import type { FlightInputState } from "./flight-input";
@@ -142,6 +143,11 @@ export class StationConsole {
       const result: StationActionResult = stock.craftNextLaser(equipment);
       this.lastMessage = result.message;
     }
+
+    if (input.pressedOnce.has("Digit7")) {
+      const result: StationActionResult = stock.upgradeTractor(equipment);
+      this.lastMessage = result.message;
+    }
   }
 
   private describeStock(stock: StationStock): StationLine[] {
@@ -176,6 +182,9 @@ export class StationConsole {
       Math.min(equipment.laserUpgrade + 1, MAX_UPGRADE_LEVEL),
     );
     const upgradeMineralName: string = MINERAL_DEFINITIONS[upgradeCost.mineral].displayName;
+
+    const nextTractorTier: number = equipment.tractorTier + 1;
+    const tractorCost: CraftCost | null = craftCostFor(nextTractorTier);
 
     const nextTier: number = equipment.laserTier + 1;
     const craftCost: CraftCost | null = craftCostFor(nextTier);
@@ -233,6 +242,27 @@ export class StationConsole {
         isAvailable:
           craftCost !== null &&
           craftCost.ingots.every(
+            (entry) => stock.ingotsOf(entry.mineral) >= entry.amount,
+          ),
+      },
+      {
+        key: "7",
+        label:
+          nextTractorTier > MAX_LASER_TIER
+            ? "견인빔 (최대 티어)"
+            : `견인빔 T${nextTractorTier} 제작`,
+        detail:
+          tractorCost === null
+            ? "더 높은 티어가 없다"
+            : `${tractorCost.ingots
+                .map(
+                  (entry) =>
+                    `${MINERAL_DEFINITIONS[entry.mineral].displayName} 주괴 ${entry.amount}`,
+                )
+                .join(" + ")} · 동시 ${equipment.tractorCapacity} → ${equipment.tractorCapacity + TRACTOR_BEAM.CapacityPerTier}`,
+        isAvailable:
+          tractorCost !== null &&
+          tractorCost.ingots.every(
             (entry) => stock.ingotsOf(entry.mineral) >= entry.amount,
           ),
       },

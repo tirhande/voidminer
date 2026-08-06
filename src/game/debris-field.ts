@@ -17,6 +17,9 @@ type DebrisItem = {
 const scratchDirection: THREE.Vector3 = new THREE.Vector3();
 const scratchDesired: THREE.Vector3 = new THREE.Vector3();
 
+/** 견인빔이 꺼져 있을 때 쓰는 빈 선택. 프레임마다 새로 만들지 않는다. */
+const EMPTY_SELECTION: ReadonlySet<unknown> = new Set<unknown>();
+
 /**
  * 파편 무리와 견인빔 회수를 담당한다.
  *
@@ -88,6 +91,7 @@ export class DebrisField {
    * @param shipPosition 함선 위치
    * @param shipVelocity 함선 속도. 끌어당길 목표 속도의 기준이 된다
    * @param isTractorActive 견인빔 사용 여부
+   * @param tractorCapacity 동시에 끌 수 있는 파편 수
    * @param cargo 회수한 자원을 담을 화물칸
    * @returns 이번 프레임에 회수된 자원 목록
    */
@@ -96,10 +100,16 @@ export class DebrisField {
     shipPosition: THREE.Vector3,
     shipVelocity: THREE.Vector3,
     isTractorActive: boolean,
+    tractorCapacity: number,
     cargo: Cargo,
   ): ResourceId[] {
     const collected: ResourceId[] = [];
     this.pulledPositions.length = 0;
+
+    // 한도가 있으므로 아무거나 잡으면 안 된다. 가까운 것부터 채운다.
+    const grabbed: ReadonlySet<unknown> = isTractorActive
+      ? this.selectNearest(shipPosition, tractorCapacity)
+      : EMPTY_SELECTION;
 
     for (let index = this.items.length - 1; index >= 0; index -= 1) {
       const item: DebrisItem = this.items[index];
@@ -108,7 +118,7 @@ export class DebrisField {
       scratchDirection.subVectors(shipPosition, item.mesh.position);
       const distance: number = scratchDirection.length();
 
-      if (isTractorActive && distance < TRACTOR_BEAM.Range && distance > 1e-4) {
+      if (grabbed.has(item) && distance > 1e-4) {
         scratchDirection.divideScalar(distance);
 
         // 목표 속도 = 함선 속도 + 접근 속도. 접근 속도는 거리에 비례하므로
@@ -148,6 +158,30 @@ export class DebrisField {
     }
 
     return collected;
+  }
+
+  /**
+   * 사거리 안에서 가까운 순으로 한도만큼 고른다.
+   *
+   * 한도를 넘은 파편은 사라지지 않고 그 자리에 남는다 (GDD 02). 레이저를
+   * 올려 파편이 쏟아지면 회수가 병목이 되고, 그제야 회수 계통에 투자할 이유가
+   * 생긴다.
+   */
+  private selectNearest(shipPosition: THREE.Vector3, capacity: number): Set<DebrisItem> {
+    if (capacity <= 0) {
+      return new Set<DebrisItem>();
+    }
+
+    const candidates: Array<{ item: DebrisItem; distance: number }> = [];
+    for (const item of this.items) {
+      const distance: number = item.mesh.position.distanceTo(shipPosition);
+      if (distance < TRACTOR_BEAM.Range) {
+        candidates.push({ item, distance });
+      }
+    }
+
+    candidates.sort((first, second) => first.distance - second.distance);
+    return new Set(candidates.slice(0, capacity).map((entry) => entry.item));
   }
 
   private remove(index: number): void {

@@ -1,4 +1,4 @@
-import { MINING_LASER } from "../constants";
+import { MINING_LASER, TRACTOR_BEAM } from "../constants";
 import type { MineralDefinition } from "./minerals";
 
 /** 티어당 업그레이드 상한. */
@@ -25,10 +25,39 @@ export type MiningEligibility = {
 export class ShipEquipment {
   private laserTierValue: number;
   private laserUpgradeValue: number;
+  private tractorTierValue: number;
 
-  public constructor(laserTier: number = 1, laserUpgrade: number = 0) {
+  public constructor(
+    laserTier: number = 1,
+    laserUpgrade: number = 0,
+    tractorTier: number = 1,
+  ) {
     this.laserTierValue = laserTier;
     this.laserUpgradeValue = laserUpgrade;
+    this.tractorTierValue = tractorTier;
+  }
+
+  /** 현재 견인빔 티어. */
+  public get tractorTier(): number {
+    return this.tractorTierValue;
+  }
+
+  /**
+   * 동시에 끌 수 있는 파편 수.
+   *
+   * 레이저를 올릴수록 파편이 쏟아지므로, 회수 계통에 투자하지 않으면 여기가
+   * 병목이 된다. 두 계통이 갈리는 지점이다 (GDD 02).
+   */
+  public get tractorCapacity(): number {
+    return (
+      TRACTOR_BEAM.BaseCapacity +
+      (this.tractorTierValue - 1) * TRACTOR_BEAM.CapacityPerTier
+    );
+  }
+
+  /** 견인빔 티어를 올린다. */
+  public upgradeTractor(): void {
+    this.tractorTierValue += 1;
   }
 
   /** 현재 채굴 레이저 티어. */
