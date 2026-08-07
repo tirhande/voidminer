@@ -52,11 +52,17 @@ export class AsteroidField {
   private readonly byMesh: Map<THREE.Object3D, Asteroid> = new Map();
   private readonly pending: PendingRespawn[] = [];
   private readonly random: RandomSource;
+  /** 외부 소행성 모델. 없으면 절차 생성으로 만든다 */
+  private readonly modelGeometry: THREE.BufferGeometry | null;
 
-  public constructor(origin: THREE.Vector3) {
+  public constructor(
+    origin: THREE.Vector3,
+    modelGeometry: THREE.BufferGeometry | null = null,
+  ) {
     this.object3D = new THREE.Group();
     this.object3D.name = "AsteroidField";
     this.random = createSeededRandom(ASTEROID_FIELD.Seed);
+    this.modelGeometry = modelGeometry;
 
     const half: number = ASTEROID_FIELD.FieldSize / 2;
     const position: THREE.Vector3 = new THREE.Vector3();
@@ -169,6 +175,7 @@ export class AsteroidField {
       MINERAL_DEFINITIONS[mineral],
       position,
       Math.floor(this.random() * 100000),
+      this.modelGeometry,
     );
 
     this.asteroids.push(asteroid);

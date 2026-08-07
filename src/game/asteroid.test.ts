@@ -1,6 +1,8 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 
+import * as THREE_NS from "three";
+
 import { Asteroid } from "./asteroid";
 import {
   MINERAL_DEFINITIONS,
@@ -80,6 +82,43 @@ describe("소행성 채굴", () => {
       expect(current.radius).toBeGreaterThan(previous.radius);
       expect(current.mineralAmount).toBeGreaterThan(previous.mineralAmount);
     }
+  });
+
+  it("외부 모델이 있으면 그것으로 만들고 개체마다 모양이 다르다", () => {
+    // 모델을 하나만 받아도 소행성이 전부 같아 보이면 안 된다.
+    const source: THREE_NS.BufferGeometry = new THREE_NS.IcosahedronGeometry(1, 1);
+    const first = new Asteroid(
+      MINERAL_DEFINITIONS[RESOURCE.Copper],
+      new THREE.Vector3(),
+      11,
+      source,
+    );
+    const second = new Asteroid(
+      MINERAL_DEFINITIONS[RESOURCE.Copper],
+      new THREE.Vector3(),
+      99,
+      source,
+    );
+
+    const firstPositions = first.object3D.geometry.getAttribute("position").array;
+    const secondPositions = second.object3D.geometry.getAttribute("position").array;
+
+    expect(firstPositions.length).toBe(secondPositions.length);
+    let differs = false;
+    for (let index = 0; index < firstPositions.length; index += 1) {
+      if (Math.abs(firstPositions[index] - secondPositions[index]) > 1e-4) {
+        differs = true;
+        break;
+      }
+    }
+    expect(differs).toBe(true);
+  });
+
+  it("모델이 없으면 절차 생성으로 만들어진다", () => {
+    const asteroid = buildAsteroid();
+
+    // 파일이 없는 상태에서도 게임이 돌아가야 한다.
+    expect(asteroid.object3D.geometry.getAttribute("position").count).toBeGreaterThan(0);
   });
 
   it("짝인 광물은 주광물과 같은 크기 등급에 놓인다", () => {

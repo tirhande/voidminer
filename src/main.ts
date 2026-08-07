@@ -11,6 +11,7 @@ import { FlightInput } from "./game/flight-input";
 import type { FlightInputState } from "./game/flight-input";
 import { Hud } from "./game/hud";
 import { MiningLaser } from "./game/mining-laser";
+import { loadModels, type ModelLibrary } from "./game/model-library";
 import type { AimReport } from "./game/mining-laser";
 import { Ship } from "./game/ship";
 import { Nebula } from "./game/nebula";
@@ -70,7 +71,7 @@ function createLighting(): THREE.Object3D[] {
   return [hemisphere, ambient, keyLight, rimLight];
 }
 
-function bootstrap(): void {
+async function bootstrap(): Promise<void> {
   const canvas: HTMLCanvasElement = requireCanvas("viewport");
 
   const renderer: THREE.WebGLRenderer = new THREE.WebGLRenderer({
@@ -99,7 +100,10 @@ function bootstrap(): void {
   const dustField: DustField = new DustField(ship.position);
   scene.add(dustField.object3D);
 
-  const asteroidField: AsteroidField = new AsteroidField(ship.position);
+  // 모델이 없으면 null 이 오고 절차 생성으로 진행한다. 없는 것이 정상 경로다.
+  const models: ModelLibrary = await loadModels();
+
+  const asteroidField: AsteroidField = new AsteroidField(ship.position, models.asteroid);
   scene.add(asteroidField.object3D);
 
   const debrisField: DebrisField = new DebrisField();
@@ -257,4 +261,4 @@ function bootstrap(): void {
   });
 }
 
-bootstrap();
+void bootstrap();

@@ -22,8 +22,59 @@ function hashPosition(x: number, y: number, z: number, seed: number): number {
   return value - Math.floor(value);
 }
 
-/** 울퉁불퉁한 소행성 형상을 만든다. */
-function createAsteroidGeometry(radius: number, seed: number): THREE.BufferGeometry {
+/**
+ * 정점을 바깥쪽으로 밀어 표면을 흩는다.
+ *
+ * 모델을 하나만 쓰더라도 소행성마다 다르게 보여야 한다. 좌표 기반 해시를 쓰므로
+ * 시드가 다르면 다른 모양이 나오고, 같은 시드면 매번 같은 모양이 나온다.
+ */
+function displaceVertices(geometry: THREE.BufferGeometry, seed: number): void {
+  const position: THREE.BufferAttribute = geometry.getAttribute(
+    "position",
+  ) as THREE.BufferAttribute;
+
+  const vertex: THREE.Vector3 = new THREE.Vector3();
+  for (let index = 0; index < position.count; index += 1) {
+    vertex.fromBufferAttribute(position, index);
+    const length: number = vertex.length();
+    if (length < 1e-6) {
+      continue;
+    }
+
+    const direction: THREE.Vector3 = vertex.clone().divideScalar(length);
+    const noise: number = hashPosition(
+      Math.round(direction.x * 6),
+      Math.round(direction.y * 6),
+      Math.round(direction.z * 6),
+      seed,
+    );
+    const scale: number = 1 + (noise - 0.5) * SURFACE_ROUGHNESS;
+    vertex.copy(direction).multiplyScalar(length * scale);
+    position.setXYZ(index, vertex.x, vertex.y, vertex.z);
+  }
+
+  geometry.computeVertexNormals();
+}
+
+/**
+ * 소행성 형상을 만든다.
+ *
+ * 외부 모델이 있으면 그것을 복제해 쓰고, 없으면 다면체로 생성한다. 어느 쪽이든
+ * 정점을 흩어 개체마다 다른 모양이 되게 한다.
+ */
+function createAsteroidGeometry(
+  radius: number,
+  seed: number,
+  source: THREE.BufferGeometry | null,
+): THREE.BufferGeometry {
+  if (source !== null) {
+    // 모델은 반지름 1 로 정규화돼 있다. 등급에 맞춰 키운 뒤 흩는다.
+    const cloned: THREE.BufferGeometry = source.clone();
+    cloned.scale(radius, radius, radius);
+    displaceVertices(cloned, seed);
+    return cloned;
+  }
+
   const geometry: THREE.IcosahedronGeometry = new THREE.IcosahedronGeometry(radius, 2);
   const position: THREE.BufferAttribute = geometry.getAttribute(
     "position",
@@ -65,7 +116,12 @@ export class Asteroid {
   private readonly totalMineral: number;
   private remainingMineral: number;
 
-  public constructor(mineral: MineralDefinition, position: THREE.Vector3, seed: number) {
+  public constructor(
+    mineral: MineralDefinition,
+    position: THREE.Vector3,
+    seed: number,
+    modelGeometry: THREE.BufferGeometry | null = null,
+  ) {
     // 크기는 광물이 정한다. 크기가 곧 티어의 단서이므로 따로 받지 않는다.
     const sizeDefinition: AsteroidSizeDefinition = sizeForMineral(mineral.id);
     this.mineral = mineral;
@@ -83,7 +139,10 @@ export class Asteroid {
       flatShading: true,
     });
 
-    this.object3D = new THREE.Mesh(createAsteroidGeometry(this.radius, seed), material);
+    this.object3D = new THREE.Mesh(
+      createAsteroidGeometry(this.radius, seed, modelGeometry),
+      material,
+    );
     this.object3D.name = `Asteroid_${mineral.id}`;
     this.object3D.position.copy(position);
     this.object3D.rotation.set(
