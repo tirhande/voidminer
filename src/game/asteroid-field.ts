@@ -17,26 +17,75 @@ type PendingRespawn = {
   remainingSeconds: number;
 };
 
-/** 분포 가중치의 합. 광물 하나를 고를 때 쓴다. */
-const TOTAL_ABUNDANCE: number = MINERAL_ORDER.reduce(
-  (total, mineral) => total + MINERAL_DEFINITIONS[mineral].abundance,
-  0,
+/** 가장 큰 소행성의 반지름. 자리를 먼저 정하므로 여유를 최대치로 잡는다. */
+const LARGEST_RADIUS: number = Math.max(
+  ...MINERAL_ORDER.map((mineral) => sizeForMineral(mineral).radius),
 );
 
-/**
- * 분포에 따라 광물을 하나 고른다.
- *
- * 티어와 분포는 별개 속성이다 (GDD 02). 철은 상위 티어인데 가장 흔하다.
- */
-function pickMineral(random: RandomSource): MineralId {
-  let roll: number = random() * TOTAL_ABUNDANCE;
-  for (const mineral of MINERAL_ORDER) {
-    roll -= MINERAL_DEFINITIONS[mineral].abundance;
-    if (roll <= 0) {
-      return mineral;
+/** 대역 문턱을 가까운 것부터 늘어놓는다. */
+const BAND_STARTS: readonly number[] = [
+  ...new Set(Object.values(ASTEROID_FIELD.TierBandStart)),
+].sort((a, b) => a - b);
+
+/** 그 거리가 몇 번째 대역인지. */
+function bandIndexOfRatio(distanceRatio: number): number {
+  let index: number = 0;
+  for (let candidate = 0; candidate < BAND_STARTS.length; candidate += 1) {
+    if (distanceRatio >= BAND_STARTS[candidate]) {
+      index = candidate;
     }
   }
-  return MINERAL_ORDER[0];
+  return index;
+}
+
+/** 그 광물이 속한 대역 번호. */
+function bandIndexOfMineral(mineral: MineralId): number {
+  const start: number =
+    ASTEROID_FIELD.TierBandStart[MINERAL_DEFINITIONS[mineral].requiredLaserTier] ?? 0;
+  return BAND_STARTS.indexOf(start);
+}
+
+/**
+ * 그 거리에서 나올 수 있는 광물인지 본다.
+ *
+ * @param distanceRatio 필드 반지름에 대한 비율 (0 이 시작 지점)
+ */
+export function isMineralAllowedAt(mineral: MineralId, distanceRatio: number): boolean {
+  return bandIndexOfMineral(mineral) <= bandIndexOfRatio(distanceRatio);
+}
+
+/**
+ * 그 거리에서 나올 수 있는 광물 중 하나를 분포에 따라 고른다.
+ *
+ * 티어와 분포는 별개 속성이다 (GDD 02). 철은 상위 티어인데 가장 흔하다. 다만
+ * 멀리 나갈수록 그 자리의 광물이 주류가 돼야 한다. 흔한 하위 광물을 그대로
+ * 두면 바깥에서도 철이 대부분을 차지해 멀리 갈 이유가 사라진다.
+ */
+function pickMineral(random: RandomSource, distanceRatio: number): MineralId {
+  const here: number = bandIndexOfRatio(distanceRatio);
+  const weights: Array<{ mineral: MineralId; weight: number }> = [];
+  let total: number = 0;
+
+  for (const mineral of MINERAL_ORDER) {
+    const band: number = bandIndexOfMineral(mineral);
+    if (band > here) {
+      continue;
+    }
+    const weight: number =
+      MINERAL_DEFINITIONS[mineral].abundance *
+      Math.pow(ASTEROID_FIELD.LowerTierDamping, here - band);
+    weights.push({ mineral, weight });
+    total += weight;
+  }
+
+  let roll: number = random() * total;
+  for (const entry of weights) {
+    roll -= entry.weight;
+    if (roll <= 0) {
+      return entry.mineral;
+    }
+  }
+  return weights[weights.length - 1]?.mineral ?? MINERAL_ORDER[0];
 }
 
 /**
@@ -52,6 +101,8 @@ export class AsteroidField {
   private readonly byMesh: Map<THREE.Object3D, Asteroid> = new Map();
   private readonly pending: PendingRespawn[] = [];
   private readonly random: RandomSource;
+  /** 필드 중심. 대역 거리를 재는 기준이다 */
+  private readonly origin: THREE.Vector3;
   /** 광물별 외부 모델. 없는 광물은 절차 생성으로 만든다 */
   private readonly models: ReadonlyMap<MineralId, THREE.Object3D>;
 
@@ -63,28 +114,29 @@ export class AsteroidField {
     this.object3D.name = "AsteroidField";
     this.random = createSeededRandom(ASTEROID_FIELD.Seed);
     this.models = models;
+    this.origin = origin.clone();
 
     const half: number = ASTEROID_FIELD.FieldSize / 2;
     const position: THREE.Vector3 = new THREE.Vector3();
 
+    // 시작 지점 주변은 비워둔다. 스폰하자마자 소행성에 파묻히면 안 된다.
+    const minRatio: number = (ASTEROID_FIELD.SpawnClearance + LARGEST_RADIUS) / half;
+
     for (let index = 0; index < ASTEROID_FIELD.Count; index += 1) {
-      const mineral: MineralId = pickMineral(this.random);
-      const radius: number = sizeForMineral(mineral).radius;
+      const ratio: number = randomInRange(this.random, minRatio, 1);
+      this.placeAt(position, ratio);
+      this.spawn(pickMineral(this.random, ratio), position);
+    }
 
-      // 시작 지점 주변은 비워둔다. 스폰하자마자 소행성에 파묻히면 안 된다.
-      let attempts: number = 0;
-      do {
-        position.set(
-          origin.x + randomInRange(this.random, -half, half),
-          origin.y + randomInRange(this.random, -half * 0.45, half * 0.45),
-          origin.z + randomInRange(this.random, -half, half),
-        );
-        attempts += 1;
-      } while (
-        position.distanceTo(origin) < ASTEROID_FIELD.SpawnClearance + radius &&
-        attempts < 12
-      );
-
+    // 대역만 나눠두면 가장 바깥 광물은 한 개도 안 나오는 판이 생긴다. 백금이
+    // 없으면 마지막 합금을 만들 길이 사라지므로 광물마다 하나는 보장한다.
+    for (const mineral of MINERAL_ORDER) {
+      if (this.asteroids.some((asteroid) => asteroid.mineral.id === mineral)) {
+        continue;
+      }
+      const bandStart: number = BAND_STARTS[bandIndexOfMineral(mineral)];
+      const ratio: number = randomInRange(this.random, Math.max(bandStart, minRatio), 1);
+      this.placeAt(position, ratio);
       this.spawn(mineral, position);
     }
   }
@@ -178,9 +230,37 @@ export class AsteroidField {
           ).multiplyScalar(ASTEROID_FIELD.RespawnScatter),
         );
 
-      this.spawn(entry.mineral, scattered);
+      // 흩뿌리다가 자기 대역 안쪽으로 들어갈 수 있다. 그러면 원래 자리에 둔다.
+      // 원래 자리는 배치할 때 대역을 지킨 곳이므로 되돌리면 항상 맞는다.
+      const isValid: boolean = isMineralAllowedAt(
+        entry.mineral,
+        scattered.distanceTo(this.origin) / (ASTEROID_FIELD.FieldSize / 2),
+      );
+
+      this.spawn(entry.mineral, isValid ? scattered : entry.position);
       this.pending.splice(index, 1);
     }
+  }
+
+  /**
+   * 중심에서 그 비율만큼 떨어진 자리를 하나 정한다.
+   *
+   * 상자 안에서 균일하게 뽑으면 부피가 거리 세제곱으로 늘어 대부분이 최외곽에
+   * 몰린다. 거리를 직접 균일하게 뽑아야 대역마다 비슷한 수가 들어간다.
+   *
+   * 방향만 세로로 눌러 원반에 가깝게 만든다. 거리는 그대로이므로 대역은
+   * 흐트러지지 않는다.
+   */
+  private placeAt(target: THREE.Vector3, distanceRatio: number): void {
+    const cosine: number = randomInRange(this.random, -1, 1);
+    const azimuth: number = this.random() * Math.PI * 2;
+    const sine: number = Math.sqrt(Math.max(0, 1 - cosine * cosine));
+
+    target
+      .set(sine * Math.cos(azimuth), cosine * ASTEROID_FIELD.Flatten, sine * Math.sin(azimuth))
+      .normalize()
+      .multiplyScalar((ASTEROID_FIELD.FieldSize / 2) * distanceRatio)
+      .add(this.origin);
   }
 
   private spawn(mineral: MineralId, position: THREE.Vector3): void {

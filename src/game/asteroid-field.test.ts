@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { ASTEROID_FIELD } from "../constants";
 import { AsteroidField } from "./asteroid-field";
 import type { Asteroid } from "./asteroid";
-import { MINERAL_DEFINITIONS, RESOURCE } from "./minerals";
+import { MINERAL_DEFINITIONS, MINERAL_ORDER, RESOURCE } from "./minerals";
 
 /** 필드에서 지정한 광물의 소행성을 하나 찾는다. */
 function findAsteroidOf(field: AsteroidField, mineralId: string): Asteroid {
@@ -125,5 +125,91 @@ describe("소행성 재생", () => {
     field.update(1, spot.clone().add(new THREE.Vector3(0, 0, ASTEROID_FIELD.RespawnMinDistance + 10)));
 
     expect(field.pendingRespawnCount).toBe(0);
+  });
+});
+
+describe("거리 대역", () => {
+  /** 필드의 모든 소행성을 훑는다. */
+  function eachAsteroid(field: AsteroidField): Asteroid[] {
+    const found: Asteroid[] = [];
+    for (const mesh of field.raycastTargets) {
+      const asteroid: Asteroid | null = field.findByMesh(mesh);
+      if (asteroid !== null) {
+        found.push(asteroid);
+      }
+    }
+    return found;
+  }
+
+  const origin: THREE.Vector3 = new THREE.Vector3();
+  const half: number = ASTEROID_FIELD.FieldSize / 2;
+
+  it("광물이 자기 대역 안쪽에는 생기지 않는다", () => {
+    const field: AsteroidField = new AsteroidField(origin);
+
+    for (const asteroid of eachAsteroid(field)) {
+      const ratio: number = asteroid.position.distanceTo(origin) / half;
+      const bandStart: number =
+        ASTEROID_FIELD.TierBandStart[asteroid.mineral.requiredLaserTier] ?? 0;
+
+      expect(ratio).toBeGreaterThanOrEqual(bandStart);
+    }
+  });
+
+  it("시작 지점 근처에는 T1 광물만 있다", () => {
+    // 처음 나가서 만나는 것이 이리듐이면 크기가 티어의 단서라는 설계가 죽는다.
+    const field: AsteroidField = new AsteroidField(origin);
+    const nearest: Asteroid[] = eachAsteroid(field).filter(
+      (asteroid) => asteroid.position.distanceTo(origin) / half < ASTEROID_FIELD.TierBandStart[2],
+    );
+
+    expect(nearest.length).toBeGreaterThan(0);
+    for (const asteroid of nearest) {
+      expect(asteroid.mineral.requiredLaserTier).toBe(1);
+    }
+  });
+
+  it("바깥에는 상위 광물이 실제로 나온다", () => {
+    // 대역만 두고 물량이 없으면 갈 이유가 없다.
+    const field: AsteroidField = new AsteroidField(origin);
+    const outer: Asteroid[] = eachAsteroid(field).filter(
+      (asteroid) => asteroid.position.distanceTo(origin) / half >= ASTEROID_FIELD.TierBandStart[4],
+    );
+
+    expect(outer.some((asteroid) => asteroid.mineral.requiredLaserTier >= 4)).toBe(true);
+  });
+
+  it("재생해도 대역을 벗어나지 않는다", () => {
+    const field: AsteroidField = new AsteroidField(origin);
+    const target: Asteroid = findAsteroidOf(field, RESOURCE.Iron);
+    target.mine(target.remaining);
+    advanceFar(field, MINERAL_DEFINITIONS[RESOURCE.Iron].respawnSeconds + 5);
+
+    for (const asteroid of eachAsteroid(field)) {
+      const ratio: number = asteroid.position.distanceTo(origin) / half;
+      const bandStart: number =
+        ASTEROID_FIELD.TierBandStart[asteroid.mineral.requiredLaserTier] ?? 0;
+
+      expect(ratio).toBeGreaterThanOrEqual(bandStart);
+    }
+  });
+});
+
+describe("광물 보장", () => {
+  it("모든 광물이 필드에 적어도 하나는 있다", () => {
+    // 백금이 한 개도 없으면 마지막 합금을 만들 길이 사라진다. 가장 바깥
+    // 광물은 분포가 낮아 그냥 두면 없는 판이 나온다.
+    const field: AsteroidField = new AsteroidField(new THREE.Vector3());
+    const present: Set<string> = new Set();
+    for (const mesh of field.raycastTargets) {
+      const asteroid: Asteroid | null = field.findByMesh(mesh);
+      if (asteroid !== null) {
+        present.add(asteroid.mineral.id);
+      }
+    }
+
+    for (const mineral of MINERAL_ORDER) {
+      expect(present).toContain(mineral);
+    }
   });
 });
