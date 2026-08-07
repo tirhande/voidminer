@@ -6,8 +6,6 @@ import { PALETTE, POINT_LIGHT } from "../palette";
 const MAX_STRANDS = 64;
 
 /** 함선 아래쪽에서 견인빔이 나가는 지점 (로컬 좌표). */
-const EMITTER_OFFSET: THREE.Vector3 = new THREE.Vector3(0, -0.5, 0.4);
-
 const scratchEmitter: THREE.Vector3 = new THREE.Vector3();
 
 /**
@@ -23,6 +21,8 @@ export class TractorBeam {
   private readonly strands: THREE.LineSegments;
   private readonly positions: Float32Array;
   private readonly positionAttribute: THREE.BufferAttribute;
+  /** 줄기가 나가는 지점. 함선 로컬 좌표다 */
+  private readonly emitterOffset: THREE.Vector3 = new THREE.Vector3(0, -0.5, 0.4);
   private readonly emitter: THREE.Mesh<THREE.SphereGeometry, THREE.MeshBasicMaterial>;
   private readonly emitterLight: THREE.PointLight;
   private pulseSeconds: number = 0;
@@ -83,6 +83,11 @@ export class TractorBeam {
    * @param shipQuaternion 함선 회전
    * @param pulledDebris 이번 프레임에 끌려오는 파편 위치들
    */
+  /** 줄기가 나가는 지점을 정한다. 함선이 장착 위치를 알려준다. */
+  public setEmitter(offset: THREE.Vector3): void {
+    this.emitterOffset.copy(offset);
+  }
+
   public update(
     deltaSeconds: number,
     isActive: boolean,
@@ -98,7 +103,7 @@ export class TractorBeam {
     this.pulseSeconds += deltaSeconds;
     this.setVisible(true);
 
-    scratchEmitter.copy(EMITTER_OFFSET).applyQuaternion(shipQuaternion).add(shipPosition);
+    scratchEmitter.copy(this.emitterOffset).applyQuaternion(shipQuaternion).add(shipPosition);
 
     // 방출구가 맥동하면 파편이 하나도 없어도 켜진 것이 전달된다.
     const pulse: number = 1 + Math.sin(this.pulseSeconds * 6) * 0.3;

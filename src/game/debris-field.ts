@@ -192,6 +192,19 @@ export class DebrisField {
     return new Set(candidates.slice(0, capacity).map((entry) => entry.item));
   }
 
+  /**
+   * 떠 있는 파편을 모두 치운다.
+   *
+   * 항성계를 옮기면 이전 항성계에서 캐던 파편이 따라오면 안 된다. 화물칸에
+   * 들어간 것은 그대로 두고, 아직 우주에 떠 있던 것만 사라진다.
+   */
+  public clear(): void {
+    for (let index = this.items.length - 1; index >= 0; index -= 1) {
+      this.remove(index);
+    }
+    this.pulledPositions.length = 0;
+  }
+
   private remove(index: number): void {
     const item: DebrisItem = this.items[index];
     this.object3D.remove(item.mesh);

@@ -30,26 +30,29 @@ export const PALETTE = {
   Locked: 0xff3b3b,
 
   /**
-   * 광물색.
+   * 광물색. GDD 09 의 확정값이다.
    *
-   * 주광물 넷은 색 계열이 확실히 갈리고, 짝인 부광물은 같은 계열의 밝은 쪽을
-   * 쓴다. 소행성을 보면 어느 집안인지가 먼저 읽히고, 주광물인지 부광물인지는
-   * 밝기로 갈린다.
+   * 실물 색이 아니다. 실제 금속은 여덟 중 여섯이 회색이라 나란히 놓으면 구분이
+   * 안 된다. 이름이 옆에 붙어 있을 때는 문제가 없었지만 색이 곧 식별 수단이
+   * 되는 자리에서는 통하지 않는다. 그래서 여덟 색상을 서로 벌렸다.
+   *
+   * 명도와 채도는 낮게 유지한다. 색상만 벌리면 알아보기는 되면서 실사 톤에서
+   * 벗어나지 않는다.
    */
-  Copper: 0xc8703a,
-  Tin: 0xe0c9a8,
-  Iron: 0x8794a6,
-  Nickel: 0xc8d4e0,
-  Titanium: 0x7fd0e8,
-  Aluminum: 0xbfeaf6,
-  Iridium: 0xd8c2f0,
-  Platinum: 0xf0e6ff,
+  Copper: 0xcc7338,
+  Tin: 0x9eadbd,
+  Iron: 0x7a6b66,
+  Nickel: 0x99b88c,
+  Titanium: 0x668cb8,
+  Aluminum: 0xd18c6b,
+  Iridium: 0xb899d9,
+  Platinum: 0xf2d973,
 
   /** 합금색. 짝인 두 광물 사이에 놓는다 */
-  Bronze: 0xb08040,
-  NickelSteel: 0xa8b4c4,
-  TitaniumAlloy: 0x9fe0f0,
-  PlatinumIridium: 0xe6d8ff,
+  Bronze: 0xb59078,
+  NickelSteel: 0x88928c,
+  TitaniumAlloy: 0x9c8c92,
+  PlatinumIridium: 0xd5b9a6,
 } as const;
 
 /**

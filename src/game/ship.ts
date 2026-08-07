@@ -1,6 +1,6 @@
 import * as THREE from "three";
 
-import { SHIP_TUNING } from "../constants";
+import { SHIP_MODEL, SHIP_TUNING } from "../constants";
 import { EMISSION, PALETTE, POINT_LIGHT, SURFACE } from "../palette";
 import type { FlightInputState } from "./flight-input";
 
@@ -22,16 +22,152 @@ const scratchQuaternion: THREE.Quaternion = new THREE.Quaternion();
  */
 export class Ship {
   public readonly object3D: THREE.Group;
+  /** 채굴 레이저가 붙은 자리. 함선 로컬 좌표다 */
+  public readonly laserHardpoint: THREE.Vector3;
+  /** 견인빔이 붙은 자리. 함선 로컬 좌표다 */
+  public readonly tractorHardpoint: THREE.Vector3;
 
   private readonly velocityVector: THREE.Vector3 = new THREE.Vector3();
   private readonly angularVelocity: THREE.Vector3 = new THREE.Vector3();
   private readonly engineGlow: THREE.Mesh<THREE.SphereGeometry, THREE.MeshBasicMaterial>;
   private readonly engineLight: THREE.PointLight;
 
-  public constructor() {
+  /**
+   * @param hullModel 선체 모델. 없으면 절차 생성으로 만든다
+   * @param laserModel 채굴 레이저 모듈 모델
+   * @param tractorModel 견인빔 모듈 모델
+   */
+  public constructor(
+    hullModel: THREE.Object3D | null = null,
+    laserModel: THREE.Object3D | null = null,
+    tractorModel: THREE.Object3D | null = null,
+  ) {
     this.object3D = new THREE.Group();
     this.object3D.name = "PlayerShip";
 
+    const hull: THREE.Object3D | null =
+      hullModel !== null ? this.attachHull(hullModel) : null;
+    const hullSize: THREE.Vector3 =
+      hull !== null
+        ? new THREE.Box3().setFromObject(hull).getSize(new THREE.Vector3())
+        : this.buildProceduralHull();
+
+    this.laserHardpoint = this.resolveHardpoint(
+      hull,
+      SHIP_MODEL.Socket.Laser,
+      hullSize,
+      1,
+    );
+    this.tractorHardpoint = this.resolveHardpoint(
+      hull,
+      SHIP_MODEL.Socket.Tractor,
+      hullSize,
+      -1,
+    );
+
+    this.attachModule(laserModel, this.laserHardpoint, "MiningLaserModule");
+    this.attachModule(tractorModel, this.tractorHardpoint, "TractorBeamModule");
+
+    // 엔진 발광 — 추력에 따라 밝기가 변한다. 분사구 자리에 붙인다.
+    const thruster: THREE.Vector3 =
+      this.socketPosition(hull, SHIP_MODEL.Socket.Thruster) ??
+      new THREE.Vector3(0, 0, hullSize.z / 2);
+
+    this.engineGlow = new THREE.Mesh(
+      new THREE.SphereGeometry(hullSize.y * 0.22, 12, 12),
+      new THREE.MeshBasicMaterial({ color: 0x8fdcff, transparent: true, opacity: 0.9 }),
+    );
+    this.engineGlow.position.copy(thruster);
+    this.object3D.add(this.engineGlow);
+
+    this.engineLight = new THREE.PointLight(0x6fd0ff, 0, 26, 2);
+    // 빛은 분사구보다 조금 더 뒤에 둔다. 선체 안에서 새어 나오면 안 된다.
+    this.engineLight.position.set(thruster.x, thruster.y, thruster.z + 0.4);
+    this.object3D.add(this.engineLight);
+  }
+
+  /**
+   * 선체 모델을 붙인다.
+   *
+   * 모델은 앞뒤 길이 1 로 정규화돼 들어온다. 재질은 손대지 않는다. 만든 대로
+   * 보여야 하고, 장면에 환경 맵이 깔려 있어 금속 재질도 형태가 드러난다.
+   *
+   * 이 모델은 기수가 +Z 를 향한다. 비행 코드는 -Z 를 앞으로 보므로 돌려서
+   * 붙인다. 돌리지 않으면 배가 뒤로 난다.
+   */
+  private attachHull(model: THREE.Object3D): THREE.Object3D {
+    const hull: THREE.Object3D = model.clone(true);
+    hull.scale.multiplyScalar(SHIP_MODEL.Length);
+    hull.rotateY(Math.PI);
+    hull.name = "Hull";
+    this.object3D.add(hull);
+    hull.updateMatrixWorld(true);
+
+    return hull;
+  }
+
+  /**
+   * 모델 안의 장착 소켓 자리를 함선 로컬 좌표로 읽는다.
+   *
+   * 소켓은 빈 노드라 위치만 갖고 있다. 선체에 건 회전과 배율을 그대로 타므로
+   * 기수를 돌린 것도 자동으로 반영된다.
+   */
+  private socketPosition(hull: THREE.Object3D | null, name: string): THREE.Vector3 | null {
+    const socket: THREE.Object3D | undefined = hull?.getObjectByName(name);
+    if (socket === undefined) {
+      return null;
+    }
+    return this.object3D.worldToLocal(socket.getWorldPosition(new THREE.Vector3()));
+  }
+
+  /**
+   * 장착 자리를 정한다. 소켓이 있으면 그것을 쓰고, 없으면 선체 크기로 잡는다.
+   *
+   * @param side 좌우 방향. 1 이 우현이다
+   */
+  private resolveHardpoint(
+    hull: THREE.Object3D | null,
+    socketName: string,
+    hullSize: THREE.Vector3,
+    side: number,
+  ): THREE.Vector3 {
+    const socket: THREE.Vector3 | null = this.socketPosition(hull, socketName);
+    if (socket !== null) {
+      return socket;
+    }
+
+    const fallback = SHIP_MODEL.FallbackHardpoint;
+    return new THREE.Vector3(
+      (hullSize.x / 2) * fallback.LateralRatio * side,
+      (hullSize.y / 2) * fallback.VerticalRatio,
+      (hullSize.z / 2) * fallback.ForwardRatio,
+    );
+  }
+
+  /** 모듈 하나를 장착 위치에 붙인다. 모델이 없으면 아무것도 달지 않는다. */
+  private attachModule(
+    model: THREE.Object3D | null,
+    position: THREE.Vector3,
+    name: string,
+  ): void {
+    if (model === null) {
+      return;
+    }
+
+    const module: THREE.Object3D = model.clone(true);
+    // 모델은 반지름 1 로 정규화돼 있으므로 지름의 절반이 배율이다.
+    module.scale.multiplyScalar(SHIP_MODEL.ModuleSize / 2);
+    module.position.copy(position);
+    module.name = name;
+    this.object3D.add(module);
+  }
+
+  /**
+   * 절차 생성 선체. 모델이 없을 때 쓴다.
+   *
+   * @returns 선체 크기 (m)
+   */
+  private buildProceduralHull(): THREE.Vector3 {
     // 환경 맵이 없는 장면이므로 금속성을 낮게 잡는다. 금속은 반사로 밝아지는
     // 재질이라, 반사할 것이 없는 우주 공간에서 금속성을 높이면 검게 죽는다.
     // 자체 발광을 약하게 깔아 그림자 쪽도 완전히 어두워지지 않게 한다.
@@ -77,17 +213,7 @@ export class Ship {
     nozzle.position.set(0, 0, 2.1);
     this.object3D.add(nozzle);
 
-    // 엔진 발광 — 추력에 따라 밝기가 변한다.
-    this.engineGlow = new THREE.Mesh(
-      new THREE.SphereGeometry(0.36, 12, 12),
-      new THREE.MeshBasicMaterial({ color: 0x8fdcff, transparent: true, opacity: 0.9 }),
-    );
-    this.engineGlow.position.set(0, 0, 2.35);
-    this.object3D.add(this.engineGlow);
-
-    this.engineLight = new THREE.PointLight(0x6fd0ff, 0, 26, 2);
-    this.engineLight.position.set(0, 0, 2.6);
-    this.object3D.add(this.engineLight);
+    return new THREE.Vector3(3.4, 1.6, 4.6);
   }
 
   /** 현재 속력 (m/s). */

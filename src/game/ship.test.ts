@@ -1,6 +1,7 @@
+import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 
-import { SHIP_TUNING } from "../constants";
+import { SHIP_MODEL, SHIP_TUNING } from "../constants";
 import { buildFlightInput } from "../test-support/flight-input-fixture";
 import type { FlightInputState } from "./flight-input";
 import { Ship } from "./ship";
@@ -129,5 +130,68 @@ describe("Ship 비행 모델", () => {
 
     // 정확한 각도까지 검증하지 않는다. 정면이 더 이상 -Z 가 아니라는 것만 본다.
     expect(Math.abs(ship.position.x)).toBeGreaterThan(0.5);
+  });
+});
+
+describe("선체 모델 장착", () => {
+  /** 소켓을 가진 가짜 선체. 실제 에셋과 같은 이름을 쓴다. */
+  function buildHullStub(): THREE.Object3D {
+    const hull: THREE.Group = new THREE.Group();
+    const body: THREE.Mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1));
+    hull.add(body);
+
+    // 실제 에셋과 같이 기수가 +Z 를 향하는 좌표로 둔다.
+    const sockets: Array<[string, THREE.Vector3]> = [
+      [SHIP_MODEL.Socket.Laser, new THREE.Vector3(0.5, -0.15, 0.05)],
+      [SHIP_MODEL.Socket.Tractor, new THREE.Vector3(-0.5, -0.15, 0.05)],
+      [SHIP_MODEL.Socket.Thruster, new THREE.Vector3(0, 0, -0.5)],
+    ];
+    for (const [name, position] of sockets) {
+      const socket: THREE.Object3D = new THREE.Object3D();
+      socket.name = name;
+      socket.position.copy(position);
+      hull.add(socket);
+    }
+
+    return hull;
+  }
+
+  it("모델이 없어도 장착 자리가 나온다", () => {
+    const ship: Ship = new Ship();
+
+    // 좌우로 갈려 있어야 빔 둘이 겹치지 않는다.
+    expect(Math.sign(ship.laserHardpoint.x)).not.toBe(
+      Math.sign(ship.tractorHardpoint.x),
+    );
+  });
+
+  it("모델에 소켓이 있으면 그 자리를 쓴다", () => {
+    const ship: Ship = new Ship(buildHullStub());
+
+    // 선체를 돌려 붙이므로 소켓의 좌우도 함께 뒤집힌다.
+    expect(ship.laserHardpoint.x).toBeCloseTo(-0.5 * SHIP_MODEL.Length, 4);
+    expect(ship.tractorHardpoint.x).toBeCloseTo(0.5 * SHIP_MODEL.Length, 4);
+  });
+
+  it("기수가 -Z 를 향하도록 돌려 붙인다", () => {
+    // 이 모델은 기수가 +Z 다. 돌리지 않으면 배가 뒤로 난다.
+    const ship: Ship = new Ship(buildHullStub());
+    const hull: THREE.Object3D | undefined = ship.object3D.getObjectByName("Hull");
+    const thruster: THREE.Object3D | undefined = hull?.getObjectByName(
+      SHIP_MODEL.Socket.Thruster,
+    );
+
+    // 분사구는 뒤쪽, 즉 +Z 에 있어야 한다.
+    expect(thruster?.getWorldPosition(new THREE.Vector3()).z).toBeGreaterThan(0);
+  });
+
+  it("모듈 모델을 주면 선체에 붙는다", () => {
+    const module: THREE.Group = new THREE.Group();
+    module.add(new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1)));
+
+    const ship: Ship = new Ship(buildHullStub(), module, module);
+
+    expect(ship.object3D.getObjectByName("MiningLaserModule")).toBeDefined();
+    expect(ship.object3D.getObjectByName("TractorBeamModule")).toBeDefined();
   });
 });

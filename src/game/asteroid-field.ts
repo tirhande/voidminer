@@ -9,6 +9,11 @@ import {
   type MineralId,
 } from "./minerals";
 import { createSeededRandom, randomInRange, type RandomSource } from "./seeded-random";
+import {
+  STAR_SYSTEM_DEFINITIONS,
+  STARTING_SYSTEM,
+  type StarSystemDefinition,
+} from "./star-systems";
 
 /** 재생을 기다리는 자리 하나. */
 type PendingRespawn = {
@@ -22,70 +27,26 @@ const LARGEST_RADIUS: number = Math.max(
   ...MINERAL_ORDER.map((mineral) => sizeForMineral(mineral).radius),
 );
 
-/** 대역 문턱을 가까운 것부터 늘어놓는다. */
-const BAND_STARTS: readonly number[] = [
-  ...new Set(Object.values(ASTEROID_FIELD.TierBandStart)),
-].sort((a, b) => a - b);
-
-/** 그 거리가 몇 번째 대역인지. */
-function bandIndexOfRatio(distanceRatio: number): number {
-  let index: number = 0;
-  for (let candidate = 0; candidate < BAND_STARTS.length; candidate += 1) {
-    if (distanceRatio >= BAND_STARTS[candidate]) {
-      index = candidate;
-    }
-  }
-  return index;
-}
-
-/** 그 광물이 속한 대역 번호. */
-function bandIndexOfMineral(mineral: MineralId): number {
-  const start: number =
-    ASTEROID_FIELD.TierBandStart[MINERAL_DEFINITIONS[mineral].requiredLaserTier] ?? 0;
-  return BAND_STARTS.indexOf(start);
-}
-
 /**
- * 그 거리에서 나올 수 있는 광물인지 본다.
+ * 그 항성계에 있는 광물 중 하나를 분포에 따라 고른다.
  *
- * @param distanceRatio 필드 반지름에 대한 비율 (0 이 시작 지점)
+ * 티어와 분포는 별개 속성이다 (GDD 02). 철은 상위 티어인데 가장 흔하다.
+ * 항성계마다 나오는 광물이 다르므로 분포도 그 안에서만 견준다.
  */
-export function isMineralAllowedAt(mineral: MineralId, distanceRatio: number): boolean {
-  return bandIndexOfMineral(mineral) <= bandIndexOfRatio(distanceRatio);
-}
-
-/**
- * 그 거리에서 나올 수 있는 광물 중 하나를 분포에 따라 고른다.
- *
- * 티어와 분포는 별개 속성이다 (GDD 02). 철은 상위 티어인데 가장 흔하다. 다만
- * 멀리 나갈수록 그 자리의 광물이 주류가 돼야 한다. 흔한 하위 광물을 그대로
- * 두면 바깥에서도 철이 대부분을 차지해 멀리 갈 이유가 사라진다.
- */
-function pickMineral(random: RandomSource, distanceRatio: number): MineralId {
-  const here: number = bandIndexOfRatio(distanceRatio);
-  const weights: Array<{ mineral: MineralId; weight: number }> = [];
-  let total: number = 0;
-
-  for (const mineral of MINERAL_ORDER) {
-    const band: number = bandIndexOfMineral(mineral);
-    if (band > here) {
-      continue;
-    }
-    const weight: number =
-      MINERAL_DEFINITIONS[mineral].abundance *
-      Math.pow(ASTEROID_FIELD.LowerTierDamping, here - band);
-    weights.push({ mineral, weight });
-    total += weight;
-  }
+function pickMineral(random: RandomSource, minerals: ReadonlyArray<MineralId>): MineralId {
+  const total: number = minerals.reduce(
+    (sum, mineral) => sum + MINERAL_DEFINITIONS[mineral].abundance,
+    0,
+  );
 
   let roll: number = random() * total;
-  for (const entry of weights) {
-    roll -= entry.weight;
+  for (const mineral of minerals) {
+    roll -= MINERAL_DEFINITIONS[mineral].abundance;
     if (roll <= 0) {
-      return entry.mineral;
+      return mineral;
     }
   }
-  return weights[weights.length - 1]?.mineral ?? MINERAL_ORDER[0];
+  return minerals[minerals.length - 1];
 }
 
 /**
@@ -101,20 +62,24 @@ export class AsteroidField {
   private readonly byMesh: Map<THREE.Object3D, Asteroid> = new Map();
   private readonly pending: PendingRespawn[] = [];
   private readonly random: RandomSource;
-  /** 필드 중심. 대역 거리를 재는 기준이다 */
+  /** 필드 중심. 배치 거리를 재는 기준이다 */
   private readonly origin: THREE.Vector3;
   /** 광물별 외부 모델. 없는 광물은 절차 생성으로 만든다 */
   private readonly models: ReadonlyMap<MineralId, THREE.Object3D>;
+  /** 이 필드가 속한 항성계 */
+  public readonly system: StarSystemDefinition;
 
   public constructor(
     origin: THREE.Vector3,
     models: ReadonlyMap<MineralId, THREE.Object3D> = new Map(),
+    system: StarSystemDefinition = STAR_SYSTEM_DEFINITIONS[STARTING_SYSTEM],
   ) {
     this.object3D = new THREE.Group();
-    this.object3D.name = "AsteroidField";
-    this.random = createSeededRandom(ASTEROID_FIELD.Seed);
+    this.object3D.name = `AsteroidField_${system.id}`;
+    this.random = createSeededRandom(system.seed);
     this.models = models;
     this.origin = origin.clone();
+    this.system = system;
 
     const half: number = ASTEROID_FIELD.FieldSize / 2;
     const position: THREE.Vector3 = new THREE.Vector3();
@@ -123,20 +88,17 @@ export class AsteroidField {
     const minRatio: number = (ASTEROID_FIELD.SpawnClearance + LARGEST_RADIUS) / half;
 
     for (let index = 0; index < ASTEROID_FIELD.Count; index += 1) {
-      const ratio: number = randomInRange(this.random, minRatio, 1);
-      this.placeAt(position, ratio);
-      this.spawn(pickMineral(this.random, ratio), position);
+      this.placeAt(position, randomInRange(this.random, minRatio, 1));
+      this.spawn(pickMineral(this.random, system.minerals), position);
     }
 
-    // 대역만 나눠두면 가장 바깥 광물은 한 개도 안 나오는 판이 생긴다. 백금이
-    // 없으면 마지막 합금을 만들 길이 사라지므로 광물마다 하나는 보장한다.
-    for (const mineral of MINERAL_ORDER) {
+    // 분포가 낮은 광물은 한 개도 안 나오는 판이 생긴다. 그 항성계에 있다고
+    // 적어둔 광물이 실제로는 없으면 목록이 거짓말이 되므로 하나는 보장한다.
+    for (const mineral of system.minerals) {
       if (this.asteroids.some((asteroid) => asteroid.mineral.id === mineral)) {
         continue;
       }
-      const bandStart: number = BAND_STARTS[bandIndexOfMineral(mineral)];
-      const ratio: number = randomInRange(this.random, Math.max(bandStart, minRatio), 1);
-      this.placeAt(position, ratio);
+      this.placeAt(position, randomInRange(this.random, minRatio, 1));
       this.spawn(mineral, position);
     }
   }
@@ -185,6 +147,22 @@ export class AsteroidField {
     this.advanceRespawns(deltaSeconds, shipPosition);
   }
 
+  /**
+   * 필드를 통째로 치운다. 항성계를 옮길 때 쓴다.
+   *
+   * 소행성마다 지오메트리를 따로 갖고 있어서 (개체마다 다르게 일그러뜨리므로)
+   * 놔두면 GPU 쪽에 그대로 남는다.
+   */
+  public dispose(): void {
+    for (const asteroid of this.asteroids) {
+      this.object3D.remove(asteroid.object3D);
+      asteroid.dispose();
+    }
+    this.asteroids.length = 0;
+    this.byMesh.clear();
+    this.pending.length = 0;
+  }
+
   private removeDepleted(): void {
     for (let index = this.asteroids.length - 1; index >= 0; index -= 1) {
       const asteroid: Asteroid = this.asteroids[index];
@@ -230,14 +208,7 @@ export class AsteroidField {
           ).multiplyScalar(ASTEROID_FIELD.RespawnScatter),
         );
 
-      // 흩뿌리다가 자기 대역 안쪽으로 들어갈 수 있다. 그러면 원래 자리에 둔다.
-      // 원래 자리는 배치할 때 대역을 지킨 곳이므로 되돌리면 항상 맞는다.
-      const isValid: boolean = isMineralAllowedAt(
-        entry.mineral,
-        scattered.distanceTo(this.origin) / (ASTEROID_FIELD.FieldSize / 2),
-      );
-
-      this.spawn(entry.mineral, isValid ? scattered : entry.position);
+      this.spawn(entry.mineral, scattered);
       this.pending.splice(index, 1);
     }
   }
@@ -246,10 +217,9 @@ export class AsteroidField {
    * 중심에서 그 비율만큼 떨어진 자리를 하나 정한다.
    *
    * 상자 안에서 균일하게 뽑으면 부피가 거리 세제곱으로 늘어 대부분이 최외곽에
-   * 몰린다. 거리를 직접 균일하게 뽑아야 대역마다 비슷한 수가 들어간다.
+   * 몰리고 시작 지점 근처가 빈다. 거리를 직접 균일하게 뽑아야 고르게 퍼진다.
    *
-   * 방향만 세로로 눌러 원반에 가깝게 만든다. 거리는 그대로이므로 대역은
-   * 흐트러지지 않는다.
+   * 방향만 세로로 눌러 원반에 가깝게 만든다. 소행성대는 띠로 보여야 한다.
    */
   private placeAt(target: THREE.Vector3, distanceRatio: number): void {
     const cosine: number = randomInRange(this.random, -1, 1);

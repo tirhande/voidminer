@@ -15,6 +15,13 @@ import {
 } from "./minerals";
 import type { Station } from "./station";
 import {
+  STAR_SYSTEM_DEFINITIONS,
+  STAR_SYSTEM_ORDER,
+  STARTING_SYSTEM,
+  hasMinableMineral,
+  type StarSystemId,
+} from "./star-systems";
+import {
   MAX_LASER_TIER,
   craftCostFor,
   materialName,
@@ -39,6 +46,7 @@ export type StationAction =
   | { readonly kind: "UPGRADE_LASER" }
   | { readonly kind: "CRAFT_LASER" }
   | { readonly kind: "CRAFT_TRACTOR" }
+  | { readonly kind: "WARP"; readonly system: StarSystemId }
   | { readonly kind: "UNDOCK" };
 
 /** 화면에 그릴 버튼 하나. */
@@ -57,6 +65,25 @@ export type StockRow = {
   readonly ingots: number;
   readonly sellOre: StationButton | null;
   readonly sellIngots: StationButton | null;
+};
+
+/**
+ * 항성계 한 줄.
+ *
+ * 이동에는 비용이 없다. 진행 잠금은 채집 장비 하나뿐이므로 (GDD 05) 어디든
+ * 바로 갈 수 있다. 대신 지금 장비로 캘 것이 있는지는 가기 전에 보여준다.
+ * 적어두면 헛걸음이 선택이 되고, 안 적어두면 헛걸음이 함정이 된다.
+ */
+export type SystemRow = {
+  readonly name: string;
+  readonly summary: string;
+  /** 그 항성계에서 나오는 광물 이름 */
+  readonly minerals: ReadonlyArray<string>;
+  /** 지금 있는 곳인지 */
+  readonly isCurrent: boolean;
+  /** 지금 장비로 캘 것이 있는지 */
+  readonly hasMinable: boolean;
+  readonly action: StationAction;
 };
 
 /** 합금 한 줄. 제작 재료라 팔지 않는다. */
@@ -79,6 +106,9 @@ export type StationView = {
   readonly operations: ReadonlyArray<StationButton>;
   /** 장비 관련 작업 */
   readonly equipment: ReadonlyArray<StationButton>;
+  /** 갈 수 있는 항성계 목록 */
+  readonly systems: ReadonlyArray<SystemRow>;
+  readonly systemLabel: string;
   readonly laserLabel: string;
   readonly tractorLabel: string;
   readonly message: string;
@@ -93,10 +123,36 @@ export type StationView = {
 export class StationConsole {
   private docked: boolean = false;
   private lastMessage: string = "";
+  private system: StarSystemId = STARTING_SYSTEM;
+  /**
+   * 눌러둔 워프 목적지.
+   *
+   * 콘솔은 필드도 연출도 들고 있지 않으므로 직접 옮기지 못한다. 누른 것만
+   * 남겨두고 실제 이동은 바깥에서 가져가 처리한다.
+   */
+  private pendingWarp: StarSystemId | null = null;
 
   /** 도킹 중인지 여부. */
   public get isDocked(): boolean {
     return this.docked;
+  }
+
+  /** 지금 있는 항성계. */
+  public get currentSystem(): StarSystemId {
+    return this.system;
+  }
+
+  /** 도착한 항성계를 알린다. */
+  public arriveAt(system: StarSystemId): void {
+    this.system = system;
+    this.lastMessage = `${STAR_SYSTEM_DEFINITIONS[system].displayName} 도착`;
+  }
+
+  /** 눌러둔 워프 목적지를 가져가고 비운다. */
+  public takePendingWarp(): StarSystemId | null {
+    const target: StarSystemId | null = this.pendingWarp;
+    this.pendingWarp = null;
+    return target;
   }
 
   /**
@@ -133,6 +189,8 @@ export class StationConsole {
       alloys: describeAlloys(stock),
       operations: describeOperations(cargo, stock),
       equipment: describeEquipment(stock, equipment),
+      systems: describeSystems(this.system, equipment),
+      systemLabel: STAR_SYSTEM_DEFINITIONS[this.system].displayName,
       laserLabel: `채굴 레이저 T${equipment.laserTier} +${equipment.laserUpgrade}`,
       tractorLabel: `견인빔 T${equipment.tractorTier} · 동시 ${equipment.tractorCapacity}`,
       message: this.lastMessage,
@@ -202,6 +260,15 @@ export class StationConsole {
         this.lastMessage = result.message;
         break;
       }
+      case "WARP": {
+        if (action.system === this.system) {
+          this.lastMessage = "이미 그 항성계에 있다";
+          break;
+        }
+        this.pendingWarp = action.system;
+        this.lastMessage = `${STAR_SYSTEM_DEFINITIONS[action.system].displayName} 으로 워프`;
+        break;
+      }
       case "UNDOCK": {
         this.setDocked(false);
         break;
@@ -265,6 +332,36 @@ function describeAlloys(stock: StationStock): AlloyRow[] {
   }
 
   return rows;
+}
+
+/**
+ * 갈 수 있는 항성계 목록.
+ *
+ * 전부 보여준다. 못 가게 막지 않는 것이 GDD 05 의 확정이다. 들어갈 수는 있고
+ * 캐지 못할 뿐이다. 다만 무엇이 나오는지와 지금 장비로 캘 것이 있는지는 적어
+ * 둔다. 가서야 알게 되면 헛걸음이 함정이 된다.
+ */
+function describeSystems(
+  current: StarSystemId,
+  equipment: ShipEquipment,
+): SystemRow[] {
+  return STAR_SYSTEM_ORDER.map((id): SystemRow => {
+    const definition = STAR_SYSTEM_DEFINITIONS[id];
+    return {
+      name: definition.displayName,
+      summary: definition.summary,
+      minerals: definition.minerals.map(
+        (mineral) => MINERAL_DEFINITIONS[mineral].displayName,
+      ),
+      isCurrent: id === current,
+      hasMinable: hasMinableMineral(
+        definition,
+        equipment.laserTier,
+        equipment.laserUpgrade,
+      ),
+      action: { kind: "WARP", system: id },
+    };
+  });
 }
 
 /** 하역·제련·합금처럼 저장고 전체를 다루는 작업. */

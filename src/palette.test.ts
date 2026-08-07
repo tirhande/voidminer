@@ -54,6 +54,23 @@ describe("팔레트", () => {
     }
   });
 
+  it("여덟 광물이 서로 다 구분된다", () => {
+    // 격자에서는 색이 곧 식별 수단이다 (GDD 09). 실제 금속은 여덟 중 여섯이
+    // 회색이라 실물 색을 쓰면 나란히 놓였을 때 구분되지 않는다.
+    const minerals = Object.values(RESOURCE);
+
+    for (let first = 0; first < minerals.length; first += 1) {
+      for (let second = first + 1; second < minerals.length; second += 1) {
+        const distance: number = channelDistance(
+          resourceColor(minerals[first]),
+          resourceColor(minerals[second]),
+        );
+
+        expect(distance).toBeGreaterThan(60);
+      }
+    }
+  });
+
   it("작동색과 막힘색이 충분히 다르다", () => {
     // 색이 1차 신호이므로 이 둘이 비슷하면 잠금 표시가 무너진다 (GDD 07).
     expect(channelDistance(PALETTE.Active, PALETTE.Locked)).toBeGreaterThan(80);

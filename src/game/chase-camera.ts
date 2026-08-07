@@ -54,7 +54,11 @@ export class ChaseCamera {
    *
    * @param deltaSeconds 프레임 델타 타임 (s)
    */
-  public update(deltaSeconds: number): void {
+  /**
+   * @param deltaSeconds 프레임 델타 타임 (s)
+   * @param extraFov 연출로 더 벌리는 시야각 (deg). 워프가 쓴다
+   */
+  public update(deltaSeconds: number, extraFov: number = 0): void {
     const speedRatio: number = Math.min(this.ship.speed / SHIP_TUNING.MaxSpeed, 1);
 
     const positionAlpha: number = 1 - Math.exp(-CAMERA_RIG.PositionLerpRate * deltaSeconds);
@@ -64,7 +68,10 @@ export class ChaseCamera {
     this.clampDistance();
     this.aimAtShip(rotationAlpha);
 
-    const targetFov: number = CAMERA_RIG.BaseFov + CAMERA_RIG.SpeedFovGain * speedRatio;
+    // 연출이 벌리는 몫도 같은 보간을 탄다. 속도로 벌어지는 것과 섞여도
+    // 자연스러워야 하기 때문이다.
+    const targetFov: number =
+      CAMERA_RIG.BaseFov + CAMERA_RIG.SpeedFovGain * speedRatio + extraFov;
     if (Math.abs(this.camera.fov - targetFov) > 0.01) {
       this.camera.fov += (targetFov - this.camera.fov) * positionAlpha;
       this.camera.updateProjectionMatrix();

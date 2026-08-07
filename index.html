@@ -308,6 +308,25 @@
         cursor: not-allowed;
       }
 
+      /* 지금 있는 항성계. 누를 수 없지만 흐리게 두면 안 된다 — 현재 위치다. */
+      .station-button.system-row.is-current {
+        opacity: 1;
+        border-color: rgba(127, 227, 255, 0.7);
+        background: rgba(127, 227, 255, 0.14);
+      }
+
+      /*
+       * 캘 것이 없는 항성계. 갈 수는 있으므로 막지 않고 표시만 바꾼다.
+       * 잠긴 채굴 대상에 쓰는 색과 같은 색을 쓴다.
+       */
+      .station-button.system-row.is-locked {
+        border-color: rgba(255, 59, 59, 0.34);
+      }
+
+      .station-button.system-row.is-locked .detail {
+        color: rgba(255, 122, 122, 0.72);
+      }
+
       #hud-station .divider {
         height: 1px;
         background: rgba(127, 227, 255, 0.18);
@@ -422,6 +441,13 @@
       <div class="row"><span id="station-laser"></span></div>
       <div class="row"><span id="station-tractor"></span></div>
       <div class="button-grid" id="station-equipment"></div>
+
+      <div class="divider"></div>
+      <div class="row">
+        <span class="section-title">항성계</span>
+        <span id="station-system-label"></span>
+      </div>
+      <div class="button-grid" id="station-systems"></div>
 
       <div class="divider"></div>
       <div class="message" id="station-message"></div>

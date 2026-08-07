@@ -8,29 +8,47 @@ function modelUrlFor(mineral: MineralId): string {
   return `models/ore_${mineral.toLowerCase()}.glb`;
 }
 
+/** 정규화 기준. */
+const NORMALIZE = {
+  /** 경계구 반지름을 1 로 맞춘다. 크기가 등급으로 정해지는 소행성용 */
+  Radius: "RADIUS",
+  /** 앞뒤 길이를 1 로 맞춘다. 길이가 곧 크기 감각인 함선용 */
+  Length: "LENGTH",
+} as const;
+
+type NormalizeMode = (typeof NORMALIZE)[keyof typeof NORMALIZE];
+
 /**
- * 모델 하나를 읽어 반지름 1 로 정규화한다.
+ * 모델 하나를 읽어 크기 1 로 정규화한다.
  *
  * 재질은 그대로 둔다. 만든 대로 보여야 하기 때문이다. 대신 장면에 환경 맵을
  * 깔아 금속 재질이 반사할 대상을 마련한다.
+ *
+ * 정규화해두면 만들어 온 크기와 무관하게 코드가 정한 크기로 나온다. 에셋이
+ * 갱신돼도 배치 값을 다시 맞출 일이 없다.
  */
-async function loadModel(url: string): Promise<THREE.Object3D | null> {
+async function loadModel(
+  url: string,
+  mode: NormalizeMode = NORMALIZE.Radius,
+): Promise<THREE.Object3D | null> {
   try {
     const loader: GLTFLoader = new GLTFLoader();
     const gltf = await loader.loadAsync(url);
     const root: THREE.Object3D = gltf.scene;
 
-    // 원점과 크기를 코드가 기대하는 기준으로 맞춘다. 반지름 1 이 기준이다.
     const box: THREE.Box3 = new THREE.Box3().setFromObject(root);
     const center: THREE.Vector3 = box.getCenter(new THREE.Vector3());
-    const sphere: THREE.Sphere = box.getBoundingSphere(new THREE.Sphere());
-
     root.position.sub(center);
+
+    const size: number =
+      mode === NORMALIZE.Length
+        ? box.getSize(new THREE.Vector3()).z
+        : box.getBoundingSphere(new THREE.Sphere()).radius;
 
     const wrapper: THREE.Group = new THREE.Group();
     wrapper.add(root);
-    if (sphere.radius > 1e-6) {
-      wrapper.scale.setScalar(1 / sphere.radius);
+    if (size > 1e-6) {
+      wrapper.scale.setScalar(1 / size);
     }
 
     return wrapper;
@@ -49,15 +67,26 @@ async function loadModel(url: string): Promise<THREE.Object3D | null> {
 export type ModelLibrary = {
   /** 광물별 소행성 모델. 없는 광물은 항목이 비어 있다 */
   readonly asteroids: ReadonlyMap<MineralId, THREE.Object3D>;
+  /** 함선 선체. 앞뒤 길이가 1 로 맞춰져 있다 */
+  readonly ship: THREE.Object3D | null;
+  /** 함선에 다는 채굴 레이저 */
+  readonly miningLaser: THREE.Object3D | null;
+  /** 함선에 다는 견인빔 */
+  readonly tractorBeam: THREE.Object3D | null;
 };
 
 /** 모델을 모두 읽는다. 실패한 것은 목록에서 빠진다. */
 export async function loadModels(): Promise<ModelLibrary> {
-  const entries: Array<[MineralId, THREE.Object3D | null]> = await Promise.all(
-    MINERAL_ORDER.map(async (mineral): Promise<[MineralId, THREE.Object3D | null]> => {
-      return [mineral, await loadModel(modelUrlFor(mineral))];
-    }),
-  );
+  const [entries, ship, miningLaser, tractorBeam] = await Promise.all([
+    Promise.all(
+      MINERAL_ORDER.map(async (mineral): Promise<[MineralId, THREE.Object3D | null]> => {
+        return [mineral, await loadModel(modelUrlFor(mineral))];
+      }),
+    ),
+    loadModel("models/ship_standard.glb", NORMALIZE.Length),
+    loadModel("models/mod_mining_laser_t1.glb"),
+    loadModel("models/mod_tractor_beam_t1.glb"),
+  ]);
 
   const asteroids: Map<MineralId, THREE.Object3D> = new Map();
   const missing: MineralId[] = [];
@@ -74,5 +103,5 @@ export async function loadModels(): Promise<ModelLibrary> {
     console.info("모델이 없어 절차 생성으로 진행하는 광물:", missing.join(", "));
   }
 
-  return { asteroids };
+  return { asteroids, ship, miningLaser, tractorBeam };
 }

@@ -1,6 +1,6 @@
 import * as THREE from "three";
 
-import { MAX_DELTA_SECONDS } from "./constants";
+import { MAX_DELTA_SECONDS, WARP } from "./constants";
 import { AsteroidField } from "./game/asteroid-field";
 import { Cargo } from "./game/cargo";
 import { ChaseCamera } from "./game/chase-camera";
@@ -21,8 +21,14 @@ import { Starfield } from "./game/starfield";
 import { Station } from "./game/station";
 import { StationConsole } from "./game/station-console";
 import type { StationView } from "./game/station-console";
+import {
+  STAR_SYSTEM_DEFINITIONS,
+  STARTING_SYSTEM,
+  type StarSystemId,
+} from "./game/star-systems";
 import { StationStock } from "./game/station-stock";
 import { TractorBeam } from "./game/tractor-beam";
+import { Warp } from "./game/warp";
 import { LIGHTING, PALETTE } from "./palette";
 import { createSpaceEnvironment } from "./rendering/environment";
 import { PostProcessing } from "./rendering/post-processing";
@@ -93,7 +99,10 @@ async function bootstrap(): Promise<void> {
     scene.add(light);
   }
 
-  const ship: Ship = new Ship();
+  // 모델이 없으면 null 이 오고 절차 생성으로 진행한다. 없는 것이 정상 경로다.
+  const models: ModelLibrary = await loadModels();
+
+  const ship: Ship = new Ship(models.ship, models.miningLaser, models.tractorBeam);
   scene.add(ship.object3D);
 
   const nebula: Nebula = new Nebula();
@@ -105,19 +114,29 @@ async function bootstrap(): Promise<void> {
   const dustField: DustField = new DustField(ship.position);
   scene.add(dustField.object3D);
 
-  // 모델이 없으면 null 이 오고 절차 생성으로 진행한다. 없는 것이 정상 경로다.
-  const models: ModelLibrary = await loadModels();
-
-  const asteroidField: AsteroidField = new AsteroidField(ship.position, models.asteroids);
+  // 필드 중심은 함선 시작 지점에 고정한다. 항성계를 갈아도 거점과 필드의
+  // 위치 관계가 유지돼야 도착하자마자 헤매지 않는다.
+  const fieldOrigin: THREE.Vector3 = ship.position.clone();
+  let asteroidField: AsteroidField = new AsteroidField(
+    fieldOrigin,
+    models.asteroids,
+    STAR_SYSTEM_DEFINITIONS[STARTING_SYSTEM],
+  );
   scene.add(asteroidField.object3D);
+
+  const warp: Warp = new Warp();
+  scene.add(warp.object3D);
 
   const debrisField: DebrisField = new DebrisField();
   scene.add(debrisField.object3D);
 
+  // 빔은 선체에 붙은 모듈에서 나가야 한다. 자리는 함선이 정해서 알려준다.
   const miningLaser: MiningLaser = new MiningLaser();
+  miningLaser.setMuzzle(ship.laserHardpoint);
   scene.add(miningLaser.object3D);
 
   const tractorBeam: TractorBeam = new TractorBeam();
+  tractorBeam.setEmitter(ship.tractorHardpoint);
   scene.add(tractorBeam.object3D);
 
   const station: Station = new Station(ship.position);
@@ -148,6 +167,28 @@ async function bootstrap(): Promise<void> {
   hud.onStationAction((action) => {
     stationConsole.execute(action, cargo, stationStock, equipment);
   });
+
+  /**
+   * 항성계를 갈아끼운다. 워프 연출 한가운데에서 불린다.
+   *
+   * 화면이 가장 흐트러져 있을 때 바꿔야 소행성이 사라지고 나타나는 것이 눈에
+   * 띄지 않는다. 화물과 저장고는 그대로 따라간다.
+   */
+  function switchSystem(target: StarSystemId): void {
+    scene.remove(asteroidField.object3D);
+    asteroidField.dispose();
+
+    asteroidField = new AsteroidField(
+      fieldOrigin,
+      models.asteroids,
+      STAR_SYSTEM_DEFINITIONS[target],
+    );
+    scene.add(asteroidField.object3D);
+
+    // 이전 항성계에서 캐던 파편이 따라오면 안 된다.
+    debrisField.clear();
+    stationConsole.arriveAt(target);
+  }
 
   /**
    * 도킹 상태가 바뀌면 조종과 커서를 함께 전환한다.
@@ -185,11 +226,23 @@ async function bootstrap(): Promise<void> {
     const deltaSeconds: number = Math.min(clock.getDelta(), MAX_DELTA_SECONDS);
     const flightInput: FlightInputState = input.sample();
 
-    // 도킹 중에는 비행 입력을 무시한다. 관성으로 흘러가면 안 된다.
-    if (!stationConsole.isDocked) {
+    // 거점에서 누른 워프를 집어간다. 도킹을 풀어야 연출이 보인다.
+    const warpTarget: StarSystemId | null = stationConsole.takePendingWarp();
+    if (warpTarget !== null && !warp.isActive) {
+      stationConsole.setDocked(false);
+      ship.halt();
+      warp.start(
+        () => switchSystem(warpTarget),
+        () => undefined,
+      );
+    }
+
+    // 도킹 중과 워프 중에는 비행 입력을 무시한다. 관성으로 흘러가면 안 된다.
+    if (!stationConsole.isDocked && !warp.isActive) {
       ship.update(deltaSeconds, flightInput);
     }
-    chaseCamera.update(deltaSeconds);
+    warp.update(deltaSeconds, chaseCamera.camera);
+    chaseCamera.update(deltaSeconds, WARP.FovGain * warp.intensity);
     nebula.follow(ship.position);
     starfield.follow(ship.position);
     dustField.wrapAround(ship.position);
@@ -200,7 +253,7 @@ async function bootstrap(): Promise<void> {
       chaseCamera.camera,
       ship.position,
       ship.quaternion,
-      flightInput.isFiring,
+      flightInput.isFiring && !warp.isActive,
       equipment,
       asteroidField,
       debrisField,
@@ -210,13 +263,13 @@ async function bootstrap(): Promise<void> {
       deltaSeconds,
       ship.position,
       ship.velocity,
-      flightInput.isTractorActive,
+      flightInput.isTractorActive && !warp.isActive,
       equipment.tractorCapacity,
       cargo,
     );
     tractorBeam.update(
       deltaSeconds,
-      flightInput.isTractorActive,
+      flightInput.isTractorActive && !warp.isActive,
       ship.position,
       ship.quaternion,
       debrisField.pulledDebris,

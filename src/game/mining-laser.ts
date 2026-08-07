@@ -14,8 +14,6 @@ const BEAM_COLOR_ALLOWED = PALETTE.Active;
 const BEAM_COLOR_LOCKED = PALETTE.Locked;
 
 /** 함선 코끝에서 빔이 나가는 지점 (로컬 좌표). */
-const MUZZLE_OFFSET: THREE.Vector3 = new THREE.Vector3(0, -0.2, -2.2);
-
 /** 원기둥 지오메트리의 기준 축. */
 const CYLINDER_AXIS: THREE.Vector3 = new THREE.Vector3(0, 1, 0);
 
@@ -58,6 +56,13 @@ export class MiningLaser {
   public readonly object3D: THREE.Group;
 
   private readonly raycaster: THREE.Raycaster = new THREE.Raycaster();
+  /**
+   * 빔이 나가는 지점. 함선 로컬 좌표다.
+   *
+   * 선체에 장착 모듈이 붙으면 그 자리에서 나가야 한다. 모델 크기에 따라
+   * 자리가 달라지므로 함선이 정해서 알려준다.
+   */
+  private readonly muzzleOffset: THREE.Vector3 = new THREE.Vector3(0, -0.2, -2.2);
   private readonly beam: THREE.Mesh<THREE.CylinderGeometry, THREE.MeshBasicMaterial>;
   private readonly impact: THREE.Mesh<THREE.SphereGeometry, THREE.MeshBasicMaterial>;
   private readonly impactLight: THREE.PointLight;
@@ -115,6 +120,11 @@ export class MiningLaser {
    * @param field 소행성 필드
    * @param debris 파편을 만들 대상
    */
+  /** 빔이 나가는 지점을 정한다. 함선이 장착 위치를 알려준다. */
+  public setMuzzle(offset: THREE.Vector3): void {
+    this.muzzleOffset.copy(offset);
+  }
+
   public update(
     deltaSeconds: number,
     camera: THREE.Camera,
@@ -213,7 +223,7 @@ export class MiningLaser {
     hitPoint: THREE.Vector3,
     isAllowed: boolean,
   ): void {
-    scratchMuzzle.copy(MUZZLE_OFFSET).applyQuaternion(shipQuaternion).add(shipPosition);
+    scratchMuzzle.copy(this.muzzleOffset).applyQuaternion(shipQuaternion).add(shipPosition);
     scratchDirection.subVectors(hitPoint, scratchMuzzle);
     const length: number = scratchDirection.length();
     if (length < 1e-3) {

@@ -8,6 +8,7 @@ import type {
   StationAction,
   StationButton,
   StationView,
+  SystemRow,
 } from "./station-console";
 
 /** HUD 가 참조하는 DOM 요소 묶음. */
@@ -41,6 +42,8 @@ type HudElements = {
   readonly stationLaser: HTMLElement;
   readonly stationTractor: HTMLElement;
   readonly stationEquipment: HTMLElement;
+  readonly stationSystems: HTMLElement;
+  readonly stationSystemLabel: HTMLElement;
   readonly stationMessage: HTMLElement;
   readonly stationUndock: HTMLElement;
 };
@@ -107,6 +110,8 @@ export class Hud {
       stationLaser: requireElement("station-laser"),
       stationTractor: requireElement("station-tractor"),
       stationEquipment: requireElement("station-equipment"),
+      stationSystems: requireElement("station-systems"),
+      stationSystemLabel: requireElement("station-system-label"),
       stationMessage: requireElement("station-message"),
       stationUndock: requireElement("station-undock"),
     };
@@ -301,6 +306,7 @@ export class Hud {
       view.alloys.map((row) => [row.name, row.count]),
       view.operations.map((button) => [button.detail, button.isAvailable]),
       view.equipment.map((button) => [button.label, button.detail, button.isAvailable]),
+      view.systems.map((row) => [row.name, row.isCurrent, row.hasMinable]),
       view.laserLabel,
       view.tractorLabel,
       view.message,
@@ -370,7 +376,44 @@ export class Hud {
       ...view.equipment.map((button) => this.buildButton(button, "wide")),
     );
 
+    this.elements.stationSystemLabel.textContent = view.systemLabel;
+    this.elements.stationSystems.replaceChildren(
+      ...view.systems.map((row) => this.buildSystemRow(row)),
+    );
+
     this.elements.stationMessage.textContent = view.message;
+  }
+
+  /**
+   * 항성계 한 줄.
+   *
+   * 지금 있는 곳은 누를 수 없게 두고, 캘 것이 없는 곳은 갈 수는 있되 그렇다고
+   * 적어둔다. 못 가게 막지 않는 것이 GDD 05 의 확정이다.
+   */
+  private buildSystemRow(row: SystemRow): HTMLElement {
+    const element: HTMLButtonElement = document.createElement("button");
+    element.className = "station-button wide system-row";
+    element.disabled = row.isCurrent;
+    element.classList.toggle("is-current", row.isCurrent);
+    element.classList.toggle("is-locked", !row.isCurrent && !row.hasMinable);
+
+    const label: HTMLSpanElement = document.createElement("span");
+    label.className = "label";
+    label.textContent = row.isCurrent ? `${row.name} — 현재 위치` : row.name;
+
+    const detail: HTMLSpanElement = document.createElement("span");
+    detail.className = "detail";
+    const minerals: string = row.minerals.join(" · ");
+    detail.textContent = row.hasMinable
+      ? `${minerals} · ${row.summary}`
+      : `${minerals} · 지금 장비로는 캘 것이 없다`;
+
+    element.append(label, detail);
+    element.addEventListener("click", () => {
+      this.stationActionCallback?.(row.action);
+    });
+
+    return element;
   }
 
   /** 버튼 하나를 만든다. 누를 수 없으면 이유가 보이도록 흐리게만 둔다. */
