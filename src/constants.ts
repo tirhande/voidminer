@@ -181,8 +181,14 @@ export const DEBRIS = {
 
 /** 화물칸 설정. */
 export const CARGO = {
-  /** 적재 상한 (광물 단위). 차면 더 담기지 않는다 */
-  Capacity: 260,
+  /**
+   * 적재 상한 (광물 단위).
+   *
+   * 측정으로 정한 값이다. 260 일 때는 강화 한 번에 필요한 광석의 여덟 배를
+   * 실을 수 있어 왕복이 강제되지 않았다. 180 이면 한 사이클이 대략 한 단계
+   * 분량이 되어 거점에 갈 이유가 매번 생긴다.
+   */
+  Capacity: 180,
 } as const;
 
 /** 거점 설정. */
@@ -220,13 +226,13 @@ export const SMELTING = {
  */
 export const UPGRADE_COST = {
   /** 첫 단계에 드는 현재 티어 재료 수 */
-  MaterialBase: 4,
+  MaterialBase: 10,
   /** 단계가 오를 때마다 더해지는 재료 수 */
-  MaterialPerLevel: 3,
+  MaterialPerLevel: 8,
   /** 첫 단계에 드는 화폐 */
-  CreditBase: 40,
+  CreditBase: 150,
   /** 단계가 오를 때마다 더해지는 화폐 */
-  CreditPerLevel: 30,
+  CreditPerLevel: 120,
 } as const;
 
 /**
@@ -239,9 +245,9 @@ export const UPGRADE_COST = {
  */
 export const SELL_PRICE = {
   /** 광석 한 단위의 값 */
-  Ore: 3,
+  Ore: 2,
   /** 주괴 하나의 값. 제련한 만큼 값이 붙는다 */
-  Ingot: 18,
+  Ingot: 14,
 } as const;
 
 /** 한 프레임의 최대 델타 타임 (s). 탭 전환 후 물리가 튀는 것을 막는다. */

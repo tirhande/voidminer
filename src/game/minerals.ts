@@ -62,7 +62,14 @@ export type MineralDefinition = {
    * 흔한 것과 나중에 쓰는 것은 다른 이야기이므로 모순이 아니다.
    */
   readonly abundance: number;
-  /** 다 캔 뒤 새 소행성이 들어서기까지 걸리는 시간 (s) */
+  /**
+   * 다 캔 뒤 새 소행성이 들어서기까지 걸리는 시간 (s).
+   *
+   * `scripts/measure-balance.mjs` 로 잰 한 사이클(약 37초)을 기준으로 잡았다.
+   * 구리는 사이클의 1.2 배라 돌아오면 이미 차 있고, 이리듐은 16 배라 기다리는
+   * 것보다 새 지역으로 가는 편이 빠르다. GDD 02 가 요구한 "시간 차이로 만드는
+   * 진행 동기"가 이 비율에서 나온다.
+   */
   readonly respawnSeconds: number;
 };
 

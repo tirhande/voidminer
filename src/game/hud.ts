@@ -3,6 +3,7 @@ import type { ShipEquipment } from "./equipment";
 import type { FlightInputState } from "./flight-input";
 import { resourceColor, resourceDisplayName } from "./minerals";
 import type { AimReport } from "./mining-laser";
+import type { ObjectiveView } from "./objectives";
 import type { StationView } from "./station-console";
 
 /** HUD 가 참조하는 DOM 요소 묶음. */
@@ -23,6 +24,10 @@ type HudElements = {
   readonly equipmentLaser: HTMLElement;
   readonly equipmentTractor: HTMLElement;
   readonly equipmentStation: HTMLElement;
+  readonly objectiveContainer: HTMLElement;
+  readonly objectiveStep: HTMLElement;
+  readonly objectiveText: HTMLElement;
+  readonly objectiveHint: HTMLElement;
   readonly dockPrompt: HTMLElement;
   readonly stationPanel: HTMLElement;
   readonly stationStock: HTMLElement;
@@ -58,6 +63,7 @@ export class Hud {
   private lastAimSignature: string = "";
   private lastCargoSignature: string = "";
   private lastStationSignature: string = "";
+  private lastObjectiveSignature: string = "";
 
   public constructor() {
     this.elements = {
@@ -77,6 +83,10 @@ export class Hud {
       equipmentLaser: requireElement("equipment-laser"),
       equipmentTractor: requireElement("equipment-tractor"),
       equipmentStation: requireElement("equipment-station"),
+      objectiveContainer: requireElement("hud-objective"),
+      objectiveStep: requireElement("objective-step"),
+      objectiveText: requireElement("objective-text"),
+      objectiveHint: requireElement("objective-hint"),
       dockPrompt: requireElement("hud-dock-prompt"),
       stationPanel: requireElement("hud-station"),
       stationStock: requireElement("station-stock"),
@@ -216,6 +226,33 @@ export class Hud {
     if (this.elements.equipmentStation.textContent !== distanceText) {
       this.elements.equipmentStation.textContent = distanceText;
     }
+  }
+
+  /**
+   * 목표 표시를 갱신한다.
+   *
+   * 무엇을 하라는 한 줄과 어떻게 하는지 한 줄을 함께 띄운다. 조작을 모르는
+   * 상태를 전제해야 첫 화면에서 막히지 않는다.
+   */
+  public updateObjective(view: ObjectiveView): void {
+    const signature: string = `${view.completedCount}|${view.text ?? ""}`;
+    if (signature === this.lastObjectiveSignature) {
+      return;
+    }
+    this.lastObjectiveSignature = signature;
+
+    this.elements.objectiveContainer.classList.toggle("done", view.isComplete);
+
+    if (view.isComplete) {
+      this.elements.objectiveStep.textContent = "";
+      this.elements.objectiveText.textContent = "첫 사이클 완료";
+      this.elements.objectiveHint.textContent = "이제 자유롭게 캐고 올린다";
+      return;
+    }
+
+    this.elements.objectiveStep.textContent = `${view.completedCount + 1} / ${view.totalCount}`;
+    this.elements.objectiveText.textContent = view.text ?? "";
+    this.elements.objectiveHint.textContent = view.hint ?? "";
   }
 
   /** 거점 화면을 갱신한다. */

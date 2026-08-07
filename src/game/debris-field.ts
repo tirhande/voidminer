@@ -34,6 +34,8 @@ export class DebrisField {
   private readonly items: DebrisItem[] = [];
   /** 이번 프레임에 견인빔이 실제로 끌어당긴 파편의 위치. 빔 표시에 쓴다 */
   private readonly pulledPositions: THREE.Vector3[] = [];
+  /** 지금까지 만든 파편 총수. 목표 판정에 쓴다 */
+  private spawnedCount: number = 0;
 
   public constructor() {
     this.object3D = new THREE.Group();
@@ -44,6 +46,11 @@ export class DebrisField {
   /** 현재 떠 있는 파편 수. */
   public get activeCount(): number {
     return this.items.length;
+  }
+
+  /** 지금까지 만든 파편 총수. */
+  public get totalSpawned(): number {
+    return this.spawnedCount;
   }
 
   /** 이번 프레임에 견인빔이 붙잡은 파편의 위치. */
@@ -82,6 +89,7 @@ export class DebrisField {
 
     this.object3D.add(mesh);
     this.items.push({ mesh, resource, amount, velocity, age: 0 });
+    this.spawnedCount += 1;
   }
 
   /**

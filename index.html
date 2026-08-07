@@ -151,6 +151,37 @@
         color: var(--hud-dim);
       }
 
+      /* 목표는 화면 위쪽 가운데에 둔다. 시선이 조준점 근처에 머무르므로
+         멀지 않으면서, 조준 대상 표시와는 위아래로 갈린다. */
+      #hud-objective {
+        left: 50%;
+        top: 26px;
+        transform: translateX(-50%);
+        text-align: center;
+        line-height: 1.7;
+        max-width: min(560px, 80vw);
+      }
+
+      #hud-objective .step {
+        color: var(--hud-dim);
+        font-size: 11px;
+        letter-spacing: 0.18em;
+      }
+
+      #hud-objective .text {
+        font-size: 15px;
+        letter-spacing: 0.08em;
+      }
+
+      #hud-objective .hint {
+        font-size: 11px;
+        color: var(--hud-dim);
+      }
+
+      #hud-objective.done .text {
+        color: #9df5c4;
+      }
+
       #hud-dock-prompt {
         left: 50%;
         bottom: 96px;
@@ -293,6 +324,12 @@
       <div><span class="label">STATION</span> <span id="equipment-station">--</span></div>
     </div>
 
+    <div id="hud-objective" class="hud">
+      <div class="step" id="objective-step"></div>
+      <div class="text" id="objective-text"></div>
+      <div class="hint" id="objective-hint"></div>
+    </div>
+
     <div id="hud-dock-prompt" class="hud is-hidden">E — 도킹</div>
 
     <div id="hud-station" class="hud is-hidden">
@@ -320,7 +357,8 @@
 
     <div id="overlay">
       <h1>VOIDMINER</h1>
-      <p>CLICK TO ENGAGE FLIGHT CONTROL</p>
+      <p>캐서 만들고, 더 좋은 것을 캔다</p>
+      <p>화면을 클릭하면 조종이 시작된다</p>
     </div>
 
     <script type="module" src="/src/main.ts"></script>

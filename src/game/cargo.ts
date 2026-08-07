@@ -17,6 +17,7 @@ export type CargoEntry = {
  */
 export class Cargo {
   private readonly amounts: Map<ResourceId, number> = new Map();
+  private readonly everSeen: Set<ResourceId> = new Set();
   private totalAmount: number = 0;
 
   /** 현재 적재량 합계. */
@@ -63,8 +64,18 @@ export class Cargo {
     }
 
     this.amounts.set(resource, this.amountOf(resource) + stored);
+    this.everSeen.add(resource);
     this.totalAmount += stored;
     return stored;
+  }
+
+  /**
+   * 지금까지 한 번이라도 담긴 적 있는 자원.
+   *
+   * 하역해서 비워도 남는다. "주석을 캤다" 같은 목표를 판정하는 데 쓴다.
+   */
+  public get seenResources(): ReadonlySet<ResourceId> {
+    return this.everSeen;
   }
 
   /** 화물칸을 비운다. 거점에 하역할 때 쓴다. */

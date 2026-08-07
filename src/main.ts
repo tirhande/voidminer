@@ -14,6 +14,8 @@ import { MiningLaser } from "./game/mining-laser";
 import type { AimReport } from "./game/mining-laser";
 import { Ship } from "./game/ship";
 import { Nebula } from "./game/nebula";
+import { ObjectiveTracker } from "./game/objectives";
+import type { ObjectiveSnapshot, ObjectiveView } from "./game/objectives";
 import { Starfield } from "./game/starfield";
 import { Station } from "./game/station";
 import { StationConsole } from "./game/station-console";
@@ -116,6 +118,7 @@ function bootstrap(): void {
   const cargo: Cargo = new Cargo();
   const stationStock: StationStock = new StationStock();
   const stationConsole: StationConsole = new StationConsole();
+  const objectives: ObjectiveTracker = new ObjectiveTracker();
 
   const chaseCamera: ChaseCamera = new ChaseCamera(
     ship,
@@ -198,7 +201,24 @@ function bootstrap(): void {
       debrisField.pulledDebris.length,
       equipment.tractorCapacity,
     );
+    // 목표는 화물과 저장고 양쪽을 본다. 하역해서 화물을 비워도 진행이
+    // 되돌아가지 않아야 하기 때문이다.
+    const snapshot: ObjectiveSnapshot = {
+      debrisSpawned: debrisField.totalSpawned,
+      cargoTotal: cargo.total,
+      cargoCapacity: cargo.capacity,
+      isDocked: stationConsole.isDocked,
+      stockOre: stationStock.totalOre,
+      stockIngots: stationStock.totalIngots,
+      alloyOf: (alloy) => stationStock.alloysOf(alloy),
+      seenMinerals: cargo.seenResources,
+      laserTier: equipment.laserTier,
+      laserUpgrade: equipment.laserUpgrade,
+    };
+    const objectiveView: ObjectiveView = objectives.update(snapshot);
+
     hud.updateAim(aimReport);
+    hud.updateObjective(objectiveView);
     hud.updateCargo(cargo);
     hud.updateEquipment(equipment, station.distanceTo(ship.position));
     hud.updateStation(stationView);
