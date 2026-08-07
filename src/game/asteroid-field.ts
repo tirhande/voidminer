@@ -52,17 +52,17 @@ export class AsteroidField {
   private readonly byMesh: Map<THREE.Object3D, Asteroid> = new Map();
   private readonly pending: PendingRespawn[] = [];
   private readonly random: RandomSource;
-  /** 외부 소행성 모델. 없으면 절차 생성으로 만든다 */
-  private readonly modelGeometry: THREE.BufferGeometry | null;
+  /** 광물별 외부 모델. 없는 광물은 절차 생성으로 만든다 */
+  private readonly models: ReadonlyMap<MineralId, THREE.Object3D>;
 
   public constructor(
     origin: THREE.Vector3,
-    modelGeometry: THREE.BufferGeometry | null = null,
+    models: ReadonlyMap<MineralId, THREE.Object3D> = new Map(),
   ) {
     this.object3D = new THREE.Group();
     this.object3D.name = "AsteroidField";
     this.random = createSeededRandom(ASTEROID_FIELD.Seed);
-    this.modelGeometry = modelGeometry;
+    this.models = models;
 
     const half: number = ASTEROID_FIELD.FieldSize / 2;
     const position: THREE.Vector3 = new THREE.Vector3();
@@ -104,9 +104,22 @@ export class AsteroidField {
     return this.pending.length;
   }
 
-  /** 메시로부터 소행성을 찾는다. 레이캐스트 결과를 해석할 때 쓴다. */
+  /**
+   * 맞은 물체로부터 소행성을 찾는다.
+   *
+   * 모델은 여러 메시로 나뉘어 있어 레이캐스트가 하위 메시를 맞힌다. 등록된
+   * 뿌리를 만날 때까지 부모를 거슬러 올라간다.
+   */
   public findByMesh(mesh: THREE.Object3D): Asteroid | null {
-    return this.byMesh.get(mesh) ?? null;
+    let current: THREE.Object3D | null = mesh;
+    while (current !== null) {
+      const found: Asteroid | undefined = this.byMesh.get(current);
+      if (found !== undefined) {
+        return found;
+      }
+      current = current.parent;
+    }
+    return null;
   }
 
   /**
@@ -175,7 +188,7 @@ export class AsteroidField {
       MINERAL_DEFINITIONS[mineral],
       position,
       Math.floor(this.random() * 100000),
-      this.modelGeometry,
+      this.models.get(mineral) ?? null,
     );
 
     this.asteroids.push(asteroid);

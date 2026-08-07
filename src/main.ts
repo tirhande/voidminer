@@ -24,6 +24,7 @@ import type { StationView } from "./game/station-console";
 import { StationStock } from "./game/station-stock";
 import { TractorBeam } from "./game/tractor-beam";
 import { LIGHTING, PALETTE } from "./palette";
+import { createSpaceEnvironment } from "./rendering/environment";
 import { PostProcessing } from "./rendering/post-processing";
 
 /** 렌더 대상 캔버스를 가져온다. */
@@ -84,6 +85,10 @@ async function bootstrap(): Promise<void> {
   renderer.setClearColor(PALETTE.Void, 1);
 
   const scene: THREE.Scene = new THREE.Scene();
+  // 모델에 금속성이 높은 재질이 섞여 있다. 금속은 주변을 반사해서 형태가
+  // 드러나므로 반사할 것이 없으면 검게 죽는다. 재질을 고치는 대신 반사할
+  // 대상을 마련해 원본 재질을 그대로 살린다.
+  scene.environment = createSpaceEnvironment(renderer);
   for (const light of createLighting()) {
     scene.add(light);
   }
@@ -103,7 +108,7 @@ async function bootstrap(): Promise<void> {
   // 모델이 없으면 null 이 오고 절차 생성으로 진행한다. 없는 것이 정상 경로다.
   const models: ModelLibrary = await loadModels();
 
-  const asteroidField: AsteroidField = new AsteroidField(ship.position, models.asteroid);
+  const asteroidField: AsteroidField = new AsteroidField(ship.position, models.asteroids);
   scene.add(asteroidField.object3D);
 
   const debrisField: DebrisField = new DebrisField();

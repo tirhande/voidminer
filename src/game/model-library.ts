@@ -1,41 +1,39 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 
-/** 소행성 모델 파일 경로. 없으면 절차 생성으로 되돌아간다. */
-const ASTEROID_MODEL_URL = "models/asteroid.glb";
+import { MINERAL_ORDER, type MineralId } from "./minerals";
+
+/** 광물 id 를 파일 이름으로 바꾼다. `COPPER` → `ore_copper.glb` */
+function modelUrlFor(mineral: MineralId): string {
+  return `models/ore_${mineral.toLowerCase()}.glb`;
+}
 
 /**
- * 외부 모델을 읽어 지오메트리로 바꾼다.
+ * 모델 하나를 읽어 반지름 1 로 정규화한다.
  *
- * 모델의 재질은 쓰지 않는다. 광물색을 코드에서 입혀야 어느 광물인지가 색으로
- * 읽히기 때문이다. 그래서 필요한 것은 형태뿐이다.
+ * 재질은 그대로 둔다. 만든 대로 보여야 하기 때문이다. 대신 장면에 환경 맵을
+ * 깔아 금속 재질이 반사할 대상을 마련한다.
  */
-async function loadGeometry(url: string): Promise<THREE.BufferGeometry | null> {
+async function loadModel(url: string): Promise<THREE.Object3D | null> {
   try {
     const loader: GLTFLoader = new GLTFLoader();
     const gltf = await loader.loadAsync(url);
+    const root: THREE.Object3D = gltf.scene;
 
-    let found: THREE.BufferGeometry | null = null;
-    gltf.scene.traverse((child: THREE.Object3D) => {
-      if (found === null && child instanceof THREE.Mesh) {
-        found = child.geometry.clone();
-      }
-    });
+    // 원점과 크기를 코드가 기대하는 기준으로 맞춘다. 반지름 1 이 기준이다.
+    const box: THREE.Box3 = new THREE.Box3().setFromObject(root);
+    const center: THREE.Vector3 = box.getCenter(new THREE.Vector3());
+    const sphere: THREE.Sphere = box.getBoundingSphere(new THREE.Sphere());
 
-    if (found === null) {
-      return null;
+    root.position.sub(center);
+
+    const wrapper: THREE.Group = new THREE.Group();
+    wrapper.add(root);
+    if (sphere.radius > 1e-6) {
+      wrapper.scale.setScalar(1 / sphere.radius);
     }
 
-    const geometry: THREE.BufferGeometry = found;
-    // 원점과 크기를 코드가 기대하는 기준으로 맞춘다. 반지름 1 의 구가 기준이다.
-    geometry.center();
-    geometry.computeBoundingSphere();
-    const radius: number = geometry.boundingSphere?.radius ?? 1;
-    if (radius > 1e-6) {
-      geometry.scale(1 / radius, 1 / radius, 1 / radius);
-    }
-
-    return geometry;
+    return wrapper;
   } catch {
     // 파일이 없거나 읽지 못하면 절차 생성으로 간다. 게임이 멈추면 안 된다.
     return null;
@@ -45,21 +43,36 @@ async function loadGeometry(url: string): Promise<THREE.BufferGeometry | null> {
 /**
  * 게임이 쓰는 외부 모델 묶음.
  *
- * 모델이 없어도 게임은 그대로 돌아간다. 에셋 교체를 마지막으로 미뤄둔 상태에서
- * 파일이 들어오는 대로 붙이려면 없는 경우가 정상 경로여야 한다.
+ * 모델이 없어도 게임은 그대로 돌아간다. 없는 것이 정상 경로여야 파일이 들어오는
+ * 대로 붙일 수 있다.
  */
 export type ModelLibrary = {
-  /** 소행성 형태. 없으면 null */
-  readonly asteroid: THREE.BufferGeometry | null;
+  /** 광물별 소행성 모델. 없는 광물은 항목이 비어 있다 */
+  readonly asteroids: ReadonlyMap<MineralId, THREE.Object3D>;
 };
 
-/** 모델을 모두 읽는다. 실패한 것은 null 로 남는다. */
+/** 모델을 모두 읽는다. 실패한 것은 목록에서 빠진다. */
 export async function loadModels(): Promise<ModelLibrary> {
-  const asteroid: THREE.BufferGeometry | null = await loadGeometry(ASTEROID_MODEL_URL);
+  const entries: Array<[MineralId, THREE.Object3D | null]> = await Promise.all(
+    MINERAL_ORDER.map(async (mineral): Promise<[MineralId, THREE.Object3D | null]> => {
+      return [mineral, await loadModel(modelUrlFor(mineral))];
+    }),
+  );
 
-  if (asteroid === null) {
-    console.info("소행성 모델이 없어 절차 생성으로 진행한다:", ASTEROID_MODEL_URL);
+  const asteroids: Map<MineralId, THREE.Object3D> = new Map();
+  const missing: MineralId[] = [];
+
+  for (const [mineral, model] of entries) {
+    if (model === null) {
+      missing.push(mineral);
+      continue;
+    }
+    asteroids.set(mineral, model);
   }
 
-  return { asteroid };
+  if (missing.length > 0) {
+    console.info("모델이 없어 절차 생성으로 진행하는 광물:", missing.join(", "));
+  }
+
+  return { asteroids };
 }

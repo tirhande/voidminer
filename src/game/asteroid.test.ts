@@ -1,8 +1,6 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 
-import * as THREE_NS from "three";
-
 import { Asteroid } from "./asteroid";
 import {
   MINERAL_DEFINITIONS,
@@ -10,6 +8,20 @@ import {
   sizeForMineral,
   type MineralId,
 } from "./minerals";
+
+/** 소행성의 모든 정점을 한 배열로 모은다. */
+function collectVertices(asteroid: Asteroid): number[] {
+  const values: number[] = [];
+  asteroid.object3D.traverse((child) => {
+    if (child instanceof THREE.Mesh) {
+      const position = child.geometry.getAttribute("position");
+      for (let index = 0; index < position.array.length; index += 1) {
+        values.push(Number(position.array[index].toFixed(4)));
+      }
+    }
+  });
+  return values;
+}
 
 /** 시험용 소행성 하나를 만든다. */
 function buildAsteroid(mineral: MineralId = RESOURCE.Copper): Asteroid {
@@ -85,40 +97,94 @@ describe("소행성 채굴", () => {
   });
 
   it("외부 모델이 있으면 그것으로 만들고 개체마다 모양이 다르다", () => {
-    // 모델을 하나만 받아도 소행성이 전부 같아 보이면 안 된다.
-    const source: THREE_NS.BufferGeometry = new THREE_NS.IcosahedronGeometry(1, 1);
+    // 광물마다 모델이 하나뿐이라 그대로 쓰면 같은 광물이 전부 같아 보인다.
+    const model: THREE.Object3D = new THREE.Mesh(new THREE.IcosahedronGeometry(1, 2));
     const first = new Asteroid(
       MINERAL_DEFINITIONS[RESOURCE.Copper],
       new THREE.Vector3(),
       11,
-      source,
+      model,
     );
     const second = new Asteroid(
       MINERAL_DEFINITIONS[RESOURCE.Copper],
       new THREE.Vector3(),
       99,
-      source,
+      model,
     );
 
-    const firstPositions = first.object3D.geometry.getAttribute("position").array;
-    const secondPositions = second.object3D.geometry.getAttribute("position").array;
+    expect(collectVertices(first).length).toBe(collectVertices(second).length);
+    expect(collectVertices(first)).not.toEqual(collectVertices(second));
+  });
 
-    expect(firstPositions.length).toBe(secondPositions.length);
-    let differs = false;
-    for (let index = 0; index < firstPositions.length; index += 1) {
-      if (Math.abs(firstPositions[index] - secondPositions[index]) > 1e-4) {
-        differs = true;
-        break;
+  it("모델을 쓰면 원본 재질을 그대로 유지한다", () => {
+    // 만든 대로 보여야 한다. 색을 덮으면 광맥과 바위 대비가 죽는다.
+    const material: THREE.MeshStandardMaterial = new THREE.MeshStandardMaterial({
+      color: 0x123456,
+      metalness: 0.9,
+    });
+    const model: THREE.Object3D = new THREE.Mesh(
+      new THREE.IcosahedronGeometry(1, 1),
+      material,
+    );
+
+    const asteroid = new Asteroid(
+      MINERAL_DEFINITIONS[RESOURCE.Copper],
+      new THREE.Vector3(),
+      5,
+      model,
+    );
+
+    const found: THREE.MeshStandardMaterial[] = [];
+    asteroid.object3D.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        found.push(child.material as THREE.MeshStandardMaterial);
       }
-    }
-    expect(differs).toBe(true);
+    });
+
+    expect(found).toHaveLength(1);
+    expect(found[0].color.getHex()).toBe(0x123456);
+    expect(found[0].metalness).toBe(0.9);
+  });
+
+  it("모델을 써도 크기 등급에 맞춰 커진다", () => {
+    const model: THREE.Object3D = new THREE.Mesh(new THREE.IcosahedronGeometry(1, 1));
+
+    const small = new Asteroid(
+      MINERAL_DEFINITIONS[RESOURCE.Copper],
+      new THREE.Vector3(),
+      1,
+      model,
+    );
+    const huge = new Asteroid(
+      MINERAL_DEFINITIONS[RESOURCE.Iridium],
+      new THREE.Vector3(),
+      1,
+      model,
+    );
+
+    expect(huge.object3D.scale.x).toBeGreaterThan(small.object3D.scale.x);
+  });
+
+  it("모델을 써도 캘수록 작아진다", () => {
+    const model: THREE.Object3D = new THREE.Mesh(new THREE.IcosahedronGeometry(1, 1));
+    const asteroid = new Asteroid(
+      MINERAL_DEFINITIONS[RESOURCE.Copper],
+      new THREE.Vector3(),
+      1,
+      model,
+    );
+    const before: number = asteroid.object3D.scale.x;
+
+    asteroid.mine(asteroid.remaining * 0.5);
+
+    expect(asteroid.object3D.scale.x).toBeLessThan(before);
   });
 
   it("모델이 없으면 절차 생성으로 만들어진다", () => {
     const asteroid = buildAsteroid();
 
     // 파일이 없는 상태에서도 게임이 돌아가야 한다.
-    expect(asteroid.object3D.geometry.getAttribute("position").count).toBeGreaterThan(0);
+    expect(collectVertices(asteroid).length).toBeGreaterThan(0);
   });
 
   it("짝인 광물은 주광물과 같은 크기 등급에 놓인다", () => {

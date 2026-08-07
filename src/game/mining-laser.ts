@@ -173,9 +173,10 @@ export class MiningLaser {
     field: AsteroidField,
   ): THREE.Intersection | null {
     this.raycaster.setFromCamera(screenCenter, camera);
+    // 모델이 여러 메시로 나뉘어 있으므로 하위까지 훑는다.
     const hits: THREE.Intersection[] = this.raycaster.intersectObjects(
       field.raycastTargets,
-      false,
+      true,
     );
     return hits.length > 0 ? hits[0] : null;
   }
