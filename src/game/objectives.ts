@@ -68,19 +68,19 @@ export const OBJECTIVES: ReadonlyArray<Objective> = [
   {
     id: "DOCK",
     text: "거점으로 돌아가 도킹한다",
-    hint: "좌측 상단 STATION 거리를 보고 접근한 뒤 E 를 누른다",
+    hint: "좌측 상단 STATION 거리를 보고 접근한 뒤 F 를 누른다",
     isComplete: (snapshot) => snapshot.isDocked,
   },
   {
     id: "UNLOAD",
     text: "화물을 하역하고 제련한다",
-    hint: "거점에서 1 로 하역, 2 로 제련한다",
+    hint: "거점 화면에서 하역을 누르고 제련을 누른다",
     isComplete: (snapshot) => snapshot.stockIngots > 0,
   },
   {
     id: "UPGRADE",
     text: "채굴 레이저를 강화 3 까지 올린다",
-    hint: "4 로 남은 광석을 팔아 크레딧을 만들고 5 로 강화한다",
+    hint: "남은 광석을 팔아 크레딧을 만들고 레이저 강화를 누른다",
     isComplete: (snapshot) => snapshot.laserTier > 1 || snapshot.laserUpgrade >= 3,
   },
   {
@@ -92,13 +92,13 @@ export const OBJECTIVES: ReadonlyArray<Objective> = [
   {
     id: "ALLOY",
     text: "청동을 만든다",
-    hint: "구리 주괴 3 과 주석 주괴 1 을 모아 거점에서 3 을 누른다",
+    hint: "구리 주괴 3 과 주석 주괴 1 을 모아 거점에서 합금을 누른다",
     isComplete: (snapshot) => snapshot.alloyOf(ALLOY.Bronze) > 0 || snapshot.laserTier > 1,
   },
   {
     id: "TIER",
     text: "청동으로 T2 레이저를 제작한다",
-    hint: "거점에서 6 을 누른다. 철을 캘 수 있게 된다",
+    hint: "거점에서 레이저 제작을 누른다. 철을 캘 수 있게 된다",
     isComplete: (snapshot) => snapshot.laserTier >= 2,
   },
   {

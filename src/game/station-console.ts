@@ -2,6 +2,7 @@ import type * as THREE from "three";
 
 import { SELL_PRICE, SMELTING } from "../constants";
 import type { Cargo } from "./cargo";
+import { KEY_BINDING } from "./controls";
 import { MAX_UPGRADE_LEVEL, type ShipEquipment } from "./equipment";
 import type { FlightInputState } from "./flight-input";
 import {
@@ -119,7 +120,7 @@ export class StationConsole {
       this.setDocked(false);
     }
 
-    if (input.pressedOnce.has("KeyE") && isInRange) {
+    if (input.pressedOnce.has(KEY_BINDING.Dock) && isInRange) {
       this.setDocked(!this.docked);
     }
 

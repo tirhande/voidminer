@@ -67,22 +67,22 @@ describe("도킹", () => {
     expect(view.isDocked).toBe(false);
   });
 
-  it("E 로 도킹하고 다시 눌러 나온다", () => {
+  it("F 로 도킹하고 다시 눌러 나온다", () => {
     const setup = buildSetup();
 
-    expect(step(setup, setup.docked, ["KeyE"]).isDocked).toBe(true);
-    expect(step(setup, setup.docked, ["KeyE"]).isDocked).toBe(false);
+    expect(step(setup, setup.docked, ["KeyF"]).isDocked).toBe(true);
+    expect(step(setup, setup.docked, ["KeyF"]).isDocked).toBe(false);
   });
 
   it("범위 밖에서는 도킹되지 않는다", () => {
     const setup = buildSetup();
 
-    expect(step(setup, setup.faraway, ["KeyE"]).isDocked).toBe(false);
+    expect(step(setup, setup.faraway, ["KeyF"]).isDocked).toBe(false);
   });
 
   it("도킹 해제 버튼으로도 나올 수 있다", () => {
     const setup = buildSetup();
-    step(setup, setup.docked, ["KeyE"]);
+    step(setup, setup.docked, ["KeyF"]);
 
     setup.console.execute({ kind: "UNDOCK" }, setup.cargo, setup.stock, setup.equipment);
 

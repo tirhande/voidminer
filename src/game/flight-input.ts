@@ -1,3 +1,5 @@
+import { KEY_BINDING } from "./controls";
+
 /** 한 프레임분의 조종 입력. 축 값은 모두 -1 ~ 1 범위로 정규화된다. */
 export type FlightInputState = {
   /** 전(+1) / 후(-1) 주추력 */
@@ -58,6 +60,10 @@ const MOUSE_BUTTON = {
  * 포인터 락을 함께 요청하지만, 락이 걸리지 않아도 조종은 가능하다. iframe 등
  * 포인터 락이 차단되는 환경에서도 게임이 돌아가야 하기 때문이다. 락이 걸린
  * 경우에는 커서가 화면 밖으로 나가지 않으므로 조작감이 더 낫다.
+ *
+ * 키 배치는 GDD 09 를 따른다. 롤이 Q/E 를 쓰므로 도킹은 F 다. 롤은 비행 중
+ * 계속 쓰고 도킹은 가끔 쓰므로 밀리는 쪽이 도킹이다. 관성 제동만 GDD 에 없어
+ * 남는 키인 X 로 뒀다.
  */
 export class FlightInput {
   private readonly canvas: HTMLCanvasElement;
@@ -111,7 +117,7 @@ export class FlightInput {
    * 도킹 상태를 전환한다.
    *
    * 도킹 중에는 커서가 필요하므로 포인터 락을 푼다. 다만 조종 자체를 끊지는
-   * 않는다. 끊으면 키 입력이 통째로 죽어 E 로 나갈 수도 없고, 시작 오버레이가
+   * 않는다. 끊으면 키 입력이 통째로 죽어 F 로 나갈 수도 없고, 시작 오버레이가
    * 거점 화면 위에 다시 뜬다.
    */
   public setDocked(value: boolean): void {
@@ -147,7 +153,7 @@ export class FlightInput {
     }
 
     if (this.dockedMode) {
-      // 도킹 중에는 비행 축을 전부 죽이고 키 입력만 남긴다. E 로 나가야 한다.
+      // 도킹 중에는 비행 축을 전부 죽이고 키 입력만 남긴다. F 로 나가야 한다.
       this.accumulatedYaw = 0;
       this.accumulatedPitch = 0;
       const dockedState: FlightInputState = {
@@ -159,14 +165,16 @@ export class FlightInput {
     }
 
     const state: FlightInputState = {
-      thrust: this.axis("KeyW", "KeyS"),
-      strafe: this.axis("KeyD", "KeyA"),
-      lift: this.axis("KeyR", "KeyF"),
-      roll: this.axis("KeyQ", "KeyE"),
+      thrust: this.axis(KEY_BINDING.ThrustForward, KEY_BINDING.ThrustBackward),
+      strafe: this.axis(KEY_BINDING.StrafeRight, KEY_BINDING.StrafeLeft),
+      lift: this.axis(KEY_BINDING.LiftUp, KEY_BINDING.LiftDown),
+      roll: this.axis(KEY_BINDING.RollLeft, KEY_BINDING.RollRight),
       yawDelta: this.accumulatedYaw,
       pitchDelta: this.accumulatedPitch,
-      isBoosting: this.pressedKeys.has("ShiftLeft") || this.pressedKeys.has("ShiftRight"),
-      isAssisting: this.pressedKeys.has("Space"),
+      isBoosting:
+        this.pressedKeys.has(KEY_BINDING.Boost) ||
+        this.pressedKeys.has(KEY_BINDING.BoostAlternate),
+      isAssisting: this.pressedKeys.has(KEY_BINDING.InertialAssist),
       isFiring: this.firing,
       isTractorActive: this.tractorActive,
       pressedOnce: new Set(this.pressedOnceKeys),
@@ -213,7 +221,7 @@ export class FlightInput {
     }
     this.pressedKeys.add(event.code);
     // 스페이스로 페이지가 스크롤되거나 버튼이 눌리는 것을 막는다.
-    if (event.code === "Space") {
+    if (event.code === KEY_BINDING.LiftUp) {
       event.preventDefault();
     }
   };
