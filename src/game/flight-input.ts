@@ -69,6 +69,7 @@ export class FlightInput {
   private engaged: boolean = false;
   private firing: boolean = false;
   private tractorActive: boolean = false;
+  private dockedMode: boolean = false;
 
   public constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -106,6 +107,23 @@ export class FlightInput {
     }
   }
 
+  /**
+   * 도킹 상태를 전환한다.
+   *
+   * 도킹 중에는 커서가 필요하므로 포인터 락을 푼다. 다만 조종 자체를 끊지는
+   * 않는다. 끊으면 키 입력이 통째로 죽어 E 로 나갈 수도 없고, 시작 오버레이가
+   * 거점 화면 위에 다시 뜬다.
+   */
+  public setDocked(value: boolean): void {
+    this.dockedMode = value;
+    this.firing = false;
+    this.tractorActive = false;
+
+    if (value && document.pointerLockElement === this.canvas) {
+      document.exitPointerLock();
+    }
+  }
+
   /** 조종을 해제한다. Esc 로 포인터 락이 풀릴 때도 함께 호출된다. */
   public releaseControl(): void {
     this.engaged = false;
@@ -126,6 +144,18 @@ export class FlightInput {
       this.accumulatedYaw = 0;
       this.accumulatedPitch = 0;
       return IDLE_INPUT;
+    }
+
+    if (this.dockedMode) {
+      // 도킹 중에는 비행 축을 전부 죽이고 키 입력만 남긴다. E 로 나가야 한다.
+      this.accumulatedYaw = 0;
+      this.accumulatedPitch = 0;
+      const dockedState: FlightInputState = {
+        ...IDLE_INPUT,
+        pressedOnce: new Set(this.pressedOnceKeys),
+      };
+      this.pressedOnceKeys.clear();
+      return dockedState;
     }
 
     const state: FlightInputState = {
@@ -200,14 +230,15 @@ export class FlightInput {
     const nowLocked: boolean = document.pointerLockElement === this.canvas;
     // 락이 걸려 있다가 풀린 경우는 사용자가 Esc 로 빠져나온 것으로 본다.
     // 애초에 락이 걸리지 않은 환경(iframe 등)에서는 조종을 끊지 않는다.
-    if (this.pointerLocked && !nowLocked) {
+    // 도킹 때문에 푼 것이라면 조종을 끊지 않는다.
+    if (this.pointerLocked && !nowLocked && !this.dockedMode) {
       this.releaseControl();
     }
     this.pointerLocked = nowLocked;
   };
 
   private readonly handleMouseMove = (event: MouseEvent): void => {
-    if (!this.engaged) {
+    if (!this.engaged || this.dockedMode) {
       return;
     }
     this.accumulatedYaw += event.movementX;
@@ -215,7 +246,8 @@ export class FlightInput {
   };
 
   private readonly handleMouseDown = (event: MouseEvent): void => {
-    if (!this.engaged) {
+    // 도킹 중 클릭은 화면 버튼용이다. 레이저가 나가면 안 된다.
+    if (!this.engaged || this.dockedMode) {
       return;
     }
     if (event.button === MOUSE_BUTTON.Left) {

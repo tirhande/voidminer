@@ -116,6 +116,17 @@ export class Ship {
   }
 
   /**
+   * 함선을 즉시 멈춘다.
+   *
+   * 도킹하면 조종이 끊기므로 관성으로 계속 흘러가면 안 된다. 도크에 물린
+   * 상태라고 보면 된다.
+   */
+  public halt(): void {
+    this.velocityVector.set(0, 0, 0);
+    this.angularVelocity.set(0, 0, 0);
+  }
+
+  /**
    * 한 프레임만큼 비행을 진행시킨다.
    *
    * @param deltaSeconds 프레임 델타 타임 (s)

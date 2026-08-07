@@ -166,15 +166,27 @@ describe("판매", () => {
     expect(stock.totalOre).toBe(0);
   });
 
-  it("앞으로 쓸 주괴는 팔지 않는다", () => {
+  it("주괴를 팔면 화폐가 되고 재고가 빈다", () => {
     const stock: StationStock = new StationStock();
-    const equipment: ShipEquipment = new ShipEquipment(1, 0);
     stockIngots(stock, RESOURCE.Copper, 10);
 
-    stock.sellSpareIngots(equipment);
+    const earned: number = stock.sellIngots(RESOURCE.Copper);
 
-    // 구리는 T1 재료이자 청동의 재료다. 팔면 안 된다.
-    expect(stock.ingotsOf(RESOURCE.Copper)).toBe(10);
+    expect(earned).toBe(10 * SELL_PRICE.Ingot);
+    expect(stock.ingotsOf(RESOURCE.Copper)).toBe(0);
+    expect(stock.credits).toBe(earned);
+  });
+
+  it("광물마다 따로 팔 수 있다", () => {
+    const stock: StationStock = new StationStock();
+    stockOre(stock, RESOURCE.Copper, 10);
+    stockOre(stock, RESOURCE.Tin, 6);
+
+    stock.sellOreOf(RESOURCE.Copper);
+
+    // 무엇을 팔고 무엇을 남길지가 선택이 되어야 한다.
+    expect(stock.oreOf(RESOURCE.Copper)).toBe(0);
+    expect(stock.oreOf(RESOURCE.Tin)).toBe(6);
   });
 });
 

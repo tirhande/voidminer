@@ -4,7 +4,11 @@ import type { FlightInputState } from "./flight-input";
 import { resourceColor, resourceDisplayName } from "./minerals";
 import type { AimReport } from "./mining-laser";
 import type { ObjectiveView } from "./objectives";
-import type { StationView } from "./station-console";
+import type {
+  StationAction,
+  StationButton,
+  StationView,
+} from "./station-console";
 
 /** HUD 가 참조하는 DOM 요소 묶음. */
 type HudElements = {
@@ -30,9 +34,15 @@ type HudElements = {
   readonly objectiveHint: HTMLElement;
   readonly dockPrompt: HTMLElement;
   readonly stationPanel: HTMLElement;
+  readonly stationCredits: HTMLElement;
   readonly stationStock: HTMLElement;
-  readonly stationActions: HTMLElement;
+  readonly stationAlloys: HTMLElement;
+  readonly stationOperations: HTMLElement;
+  readonly stationLaser: HTMLElement;
+  readonly stationTractor: HTMLElement;
+  readonly stationEquipment: HTMLElement;
   readonly stationMessage: HTMLElement;
+  readonly stationUndock: HTMLElement;
 };
 
 /**
@@ -64,6 +74,7 @@ export class Hud {
   private lastCargoSignature: string = "";
   private lastStationSignature: string = "";
   private lastObjectiveSignature: string = "";
+  private stationActionCallback: ((action: StationAction) => void) | null = null;
 
   public constructor() {
     this.elements = {
@@ -89,9 +100,15 @@ export class Hud {
       objectiveHint: requireElement("objective-hint"),
       dockPrompt: requireElement("hud-dock-prompt"),
       stationPanel: requireElement("hud-station"),
+      stationCredits: requireElement("station-credits"),
       stationStock: requireElement("station-stock"),
-      stationActions: requireElement("station-actions"),
+      stationAlloys: requireElement("station-alloys"),
+      stationOperations: requireElement("station-operations"),
+      stationLaser: requireElement("station-laser"),
+      stationTractor: requireElement("station-tractor"),
+      stationEquipment: requireElement("station-equipment"),
       stationMessage: requireElement("station-message"),
+      stationUndock: requireElement("station-undock"),
     };
 
     this.elements.cargoCapacity.textContent = "0";
@@ -255,7 +272,20 @@ export class Hud {
     this.elements.objectiveHint.textContent = view.hint ?? "";
   }
 
-  /** 거점 화면을 갱신한다. */
+  /** 거점 화면에서 버튼이 눌리면 호출할 콜백을 등록한다. */
+  public onStationAction(callback: (action: StationAction) => void): void {
+    this.stationActionCallback = callback;
+    this.elements.stationUndock.addEventListener("click", () => {
+      callback({ kind: "UNDOCK" });
+    });
+  }
+
+  /**
+   * 거점 화면을 갱신한다.
+   *
+   * 도킹 중에는 비행이 멈추고 커서가 돌아오므로, 화면에서 직접 눌러 처리한다.
+   * 숫자 키를 외우게 하지 않는다.
+   */
   public updateStation(view: StationView): void {
     this.elements.dockPrompt.classList.toggle("is-hidden", !view.isDockPromptVisible);
     this.elements.stationPanel.classList.toggle("is-hidden", !view.isDocked);
@@ -265,56 +295,113 @@ export class Hud {
       return;
     }
 
-    const signature: string = [
-      view.stock.map((line) => `${line.label}=${line.value}`).join("|"),
-      view.actions.map((action) => `${action.key}:${action.detail}:${action.isAvailable}`).join("|"),
+    const signature: string = JSON.stringify([
+      view.credits,
+      view.stock.map((row) => [row.name, row.ore, row.ingots]),
+      view.alloys.map((row) => [row.name, row.count]),
+      view.operations.map((button) => [button.detail, button.isAvailable]),
+      view.equipment.map((button) => [button.label, button.detail, button.isAvailable]),
+      view.laserLabel,
+      view.tractorLabel,
       view.message,
-    ].join("#");
+    ]);
     if (signature === this.lastStationSignature) {
       return;
     }
     this.lastStationSignature = signature;
 
+    this.elements.stationCredits.textContent = `${view.credits}`;
+
     this.elements.stationStock.replaceChildren(
-      ...view.stock.map((line) => {
-        const row: HTMLDivElement = document.createElement("div");
-        row.className = "row";
+      ...(view.stock.length === 0
+        ? [buildEmptyRow("저장고가 비어 있다")]
+        : view.stock.map((row) => {
+            const line: HTMLDivElement = document.createElement("div");
+            line.className = "stock-row";
 
-        const label: HTMLSpanElement = document.createElement("span");
-        label.className = "label";
-        label.textContent = line.label;
+            const name: HTMLSpanElement = document.createElement("span");
+            name.className = "name";
+            name.textContent = row.name;
+            name.style.color = toCssColor(row.color);
 
-        const value: HTMLSpanElement = document.createElement("span");
-        value.textContent = line.value;
+            const amounts: HTMLSpanElement = document.createElement("span");
+            amounts.className = "amounts";
+            amounts.textContent = `광석 ${row.ore} · 주괴 ${row.ingots}`;
 
-        row.append(label, value);
-        return row;
-      }),
+            const buttons: HTMLDivElement = document.createElement("div");
+            buttons.className = "row-buttons";
+            for (const button of [row.sellOre, row.sellIngots]) {
+              if (button !== null) {
+                buttons.append(this.buildButton(button, "small"));
+              }
+            }
+
+            line.append(name, amounts, buttons);
+            return line;
+          })),
     );
 
-    this.elements.stationActions.replaceChildren(
-      ...view.actions.map((action) => {
-        const row: HTMLDivElement = document.createElement("div");
-        row.className = action.isAvailable ? "action" : "action unavailable";
+    this.elements.stationAlloys.replaceChildren(
+      ...(view.alloys.length === 0
+        ? [buildEmptyRow("아직 만든 합금이 없다")]
+        : view.alloys.map((row) => {
+            const line: HTMLDivElement = document.createElement("div");
+            line.className = "row";
 
-        const key: HTMLSpanElement = document.createElement("span");
-        key.className = "key";
-        key.textContent = action.key;
+            const name: HTMLSpanElement = document.createElement("span");
+            name.textContent = row.name;
+            name.style.color = toCssColor(row.color);
 
-        const label: HTMLSpanElement = document.createElement("span");
-        label.textContent = action.label;
+            const count: HTMLSpanElement = document.createElement("span");
+            count.textContent = `${row.count}`;
 
-        const detail: HTMLSpanElement = document.createElement("span");
-        detail.className = "detail";
-        detail.textContent = action.detail;
+            line.append(name, count);
+            return line;
+          })),
+    );
 
-        row.append(key, label, detail);
-        return row;
-      }),
+    this.elements.stationOperations.replaceChildren(
+      ...view.operations.map((button) => this.buildButton(button, "wide")),
+    );
+
+    this.elements.stationLaser.textContent = view.laserLabel;
+    this.elements.stationTractor.textContent = view.tractorLabel;
+    this.elements.stationEquipment.replaceChildren(
+      ...view.equipment.map((button) => this.buildButton(button, "wide")),
     );
 
     this.elements.stationMessage.textContent = view.message;
   }
+
+  /** 버튼 하나를 만든다. 누를 수 없으면 이유가 보이도록 흐리게만 둔다. */
+  private buildButton(button: StationButton, size: "small" | "wide"): HTMLButtonElement {
+    const element: HTMLButtonElement = document.createElement("button");
+    element.className = `station-button ${size}`;
+    element.disabled = !button.isAvailable;
+
+    const label: HTMLSpanElement = document.createElement("span");
+    label.className = "label";
+    label.textContent = button.label;
+
+    const detail: HTMLSpanElement = document.createElement("span");
+    detail.className = "detail";
+    detail.textContent = button.detail;
+
+    element.append(label, detail);
+    element.addEventListener("click", () => {
+      this.stationActionCallback?.(button.action);
+    });
+
+    return element;
+  }
+}
+
+/** 목록이 비었을 때 자리를 채울 한 줄. */
+function buildEmptyRow(text: string): HTMLDivElement {
+  const row: HTMLDivElement = document.createElement("div");
+  row.className = "empty";
+  row.textContent = text;
+  return row;
 }
 
 /** 추력 상태를 짧은 문자열로 요약한다. */

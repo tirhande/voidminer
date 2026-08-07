@@ -194,12 +194,22 @@
         left: 50%;
         top: 50%;
         transform: translate(-50%, -50%);
-        width: min(560px, 82vw);
-        padding: 22px 26px;
+        width: min(680px, 88vw);
+        max-height: 86vh;
+        overflow-y: auto;
+        padding: 24px 28px;
         border: 1px solid rgba(127, 227, 255, 0.28);
-        background: rgba(4, 8, 16, 0.9);
+        background: rgba(4, 8, 16, 0.94);
         display: grid;
-        gap: 16px;
+        gap: 14px;
+        /* 도킹 중에는 조종이 멈추므로 화면이 클릭을 받아야 한다. */
+        pointer-events: auto;
+      }
+
+      #hud-station header {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
       }
 
       #hud-station h2 {
@@ -209,38 +219,93 @@
         color: var(--hud-dim);
       }
 
-      #hud-station .row {
-        display: flex;
-        justify-content: space-between;
-        gap: 20px;
-        font-size: 12px;
+      #hud-station .credits {
         font-variant-numeric: tabular-nums;
       }
 
-      #hud-station .row .label {
-        color: var(--hud-dim);
-      }
-
-      #hud-station .action {
-        display: grid;
-        grid-template-columns: 22px 1fr auto;
-        gap: 12px;
-        align-items: baseline;
-        font-size: 12px;
-      }
-
-      #hud-station .action .key {
-        color: var(--hud-cyan);
-      }
-
-      #hud-station .action .detail {
-        color: var(--hud-dim);
+      #hud-station .section-title {
         font-size: 11px;
-        text-align: right;
+        letter-spacing: 0.2em;
+        color: var(--hud-dim);
       }
 
-      #hud-station .action.unavailable {
-        opacity: 0.38;
+      #hud-station .row,
+      #hud-station .stock-row {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        font-size: 12px;
+        font-variant-numeric: tabular-nums;
+        padding: 3px 0;
+      }
+
+      #hud-station .stock-row .name {
+        width: 74px;
+        flex: none;
+      }
+
+      #hud-station .stock-row .amounts {
+        flex: 1;
+        color: var(--hud-dim);
+      }
+
+      #hud-station .row {
+        justify-content: space-between;
+      }
+
+      #hud-station .row-buttons {
+        display: flex;
+        gap: 8px;
+      }
+
+      #hud-station .empty {
+        font-size: 12px;
+        color: var(--hud-dim);
+        padding: 3px 0;
+      }
+
+      #hud-station .button-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+        gap: 8px;
+      }
+
+      .station-button {
+        display: grid;
+        gap: 2px;
+        padding: 8px 12px;
+        border: 1px solid rgba(127, 227, 255, 0.3);
+        background: rgba(127, 227, 255, 0.06);
+        color: var(--hud-cyan);
+        font: inherit;
+        font-size: 12px;
+        text-align: left;
+        cursor: pointer;
+        transition: background 0.12s ease, border-color 0.12s ease;
+      }
+
+      .station-button.small {
+        padding: 5px 10px;
+      }
+
+      .station-button .detail {
+        font-size: 10px;
+        color: var(--hud-dim);
+      }
+
+      .station-button:hover:not(:disabled) {
+        background: rgba(127, 227, 255, 0.16);
+        border-color: rgba(127, 227, 255, 0.6);
+      }
+
+      .station-button:focus-visible {
+        outline: 2px solid var(--hud-cyan);
+        outline-offset: 2px;
+      }
+
+      .station-button:disabled {
+        opacity: 0.34;
+        cursor: not-allowed;
       }
 
       #hud-station .divider {
@@ -252,6 +317,11 @@
         font-size: 12px;
         min-height: 1.4em;
         color: #9df5c4;
+      }
+
+      /* 도킹 중에는 조준용 십자 커서가 아니라 일반 커서가 맞다. */
+      body.docked {
+        cursor: default;
       }
 
       /* 오버레이의 .hidden 은 페이드용이라 display 를 건드리면 안 된다.
@@ -333,13 +403,32 @@
     <div id="hud-dock-prompt" class="hud is-hidden">E — 도킹</div>
 
     <div id="hud-station" class="hud is-hidden">
-      <h2>STATION</h2>
+      <header>
+        <h2>STATION</h2>
+        <div><span class="section-title">크레딧</span> <span class="credits" id="station-credits">0</span></div>
+      </header>
+
+      <div class="section-title">저장고</div>
       <div id="station-stock"></div>
+
+      <div class="section-title">합금</div>
+      <div id="station-alloys"></div>
+
       <div class="divider"></div>
-      <div id="station-actions"></div>
+      <div class="button-grid" id="station-operations"></div>
+
+      <div class="divider"></div>
+      <div class="row"><span class="section-title">장비</span></div>
+      <div class="row"><span id="station-laser"></span></div>
+      <div class="row"><span id="station-tractor"></span></div>
+      <div class="button-grid" id="station-equipment"></div>
+
       <div class="divider"></div>
       <div class="message" id="station-message"></div>
-      <div class="row"><span class="label">E</span><span>도킹 해제</span></div>
+      <button class="station-button wide" id="station-undock">
+        <span class="label">도킹 해제</span>
+        <span class="detail">E 로도 나갈 수 있다</span>
+      </button>
     </div>
 
     <div id="hud-readout" class="hud">

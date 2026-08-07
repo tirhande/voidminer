@@ -5,7 +5,6 @@ import {
   ALLOY,
   ALLOY_DEFINITIONS,
   MINERAL_DEFINITIONS,
-  MINERAL_ORDER,
   RESOURCE,
   type AlloyId,
   type MineralId,
@@ -230,6 +229,15 @@ export class StationStock {
     return produced;
   }
 
+  /** 지정한 광물의 광석을 판다. 반환값은 얻은 화폐다. */
+  public sellOreOf(mineral: MineralId): number {
+    const count: number = this.oreOf(mineral);
+    const earned: number = count * SELL_PRICE.Ore;
+    this.ore.set(mineral, 0);
+    this.creditCount += earned;
+    return earned;
+  }
+
   /** 남은 광석을 전부 판다. 반환값은 얻은 화폐다. */
   public sellOre(): number {
     const earned: number = this.totalOre * SELL_PRICE.Ore;
@@ -249,29 +257,6 @@ export class StationStock {
     const earned: number = count * SELL_PRICE.Ingot;
     this.ingots.set(mineral, 0);
     this.creditCount += earned;
-    return earned;
-  }
-
-  /** 제작에 쓰이지 않는 주괴를 전부 판다. */
-  public sellSpareIngots(equipment: ShipEquipment): number {
-    const keep: Set<MineralId> = new Set<MineralId>();
-    for (let tier = equipment.laserTier; tier <= MAX_LASER_TIER; tier += 1) {
-      const material: TierMaterial = materialForTier(tier);
-      if (material.kind === "INGOT") {
-        keep.add(material.mineral);
-      } else {
-        keep.add(ALLOY_DEFINITIONS[material.alloy].primary);
-        keep.add(ALLOY_DEFINITIONS[material.alloy].pair);
-      }
-    }
-
-    let earned: number = 0;
-    for (const mineral of MINERAL_ORDER) {
-      if (keep.has(mineral)) {
-        continue;
-      }
-      earned += this.sellIngots(mineral);
-    }
     return earned;
   }
 

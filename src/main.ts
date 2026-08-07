@@ -136,6 +136,32 @@ function bootstrap(): void {
   hud.onEngageRequested(() => {
     input.requestControl();
   });
+  hud.onStationAction((action) => {
+    stationConsole.execute(action, cargo, stationStock, equipment);
+  });
+
+  /**
+   * 도킹 상태가 바뀌면 조종과 커서를 함께 전환한다.
+   *
+   * 도킹 중에는 비행이 멈추고 커서가 돌아온다. 그래야 화면을 마우스로 누를 수
+   * 있고, 조종과 클릭이 부딪히지 않는다.
+   */
+  let wasDocked: boolean = false;
+  function syncDockingMode(isDocked: boolean): void {
+    if (isDocked === wasDocked) {
+      return;
+    }
+    wasDocked = isDocked;
+    document.body.classList.toggle("docked", isDocked);
+
+    input.setDocked(isDocked);
+
+    if (isDocked) {
+      ship.halt();
+    } else {
+      input.requestControl();
+    }
+  }
 
   window.addEventListener("resize", () => {
     renderer.setSize(window.innerWidth, window.innerHeight, false);
@@ -150,7 +176,10 @@ function bootstrap(): void {
     const deltaSeconds: number = Math.min(clock.getDelta(), MAX_DELTA_SECONDS);
     const flightInput: FlightInputState = input.sample();
 
-    ship.update(deltaSeconds, flightInput);
+    // 도킹 중에는 비행 입력을 무시한다. 관성으로 흘러가면 안 된다.
+    if (!stationConsole.isDocked) {
+      ship.update(deltaSeconds, flightInput);
+    }
     chaseCamera.update(deltaSeconds);
     nebula.follow(ship.position);
     starfield.follow(ship.position);
@@ -222,6 +251,7 @@ function bootstrap(): void {
     hud.updateCargo(cargo);
     hud.updateEquipment(equipment, station.distanceTo(ship.position));
     hud.updateStation(stationView);
+    syncDockingMode(stationView.isDocked);
 
     postProcessing.render();
   });
