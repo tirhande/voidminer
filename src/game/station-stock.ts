@@ -156,6 +156,37 @@ export class StationStock {
    * @returns 옮긴 총량
    */
   /**
+   * 지금 만들 수 있는 주괴 총수.
+   *
+   * 광석 총합으로는 판정할 수 없다. 제련은 광물마다 따로 이뤄지므로, 구리 3 과
+   * 주석 3 은 합쳐서 6 이어도 한 개도 못 만든다.
+   */
+  public get smeltableIngots(): number {
+    let total: number = 0;
+    for (const amount of this.ore.values()) {
+      total += Math.floor(amount / SMELTING.OrePerIngot);
+    }
+    return total;
+  }
+
+  /**
+   * 지금 만들 수 있는 합금 총수.
+   *
+   * 주괴 총합으로는 판정할 수 없다. 합금은 짝이 맞아야 만들어지므로, 구리
+   * 주괴가 아무리 많아도 주석 주괴가 없으면 청동은 한 개도 안 나온다.
+   */
+  public get alloyableCount(): number {
+    let total: number = 0;
+    for (const definition of Object.values(ALLOY_DEFINITIONS)) {
+      total += Math.min(
+        Math.floor(this.ingotsOf(definition.primary) / SMELTING.PrimaryIngotPerAlloy),
+        Math.floor(this.ingotsOf(definition.pair) / SMELTING.PairIngotPerAlloy),
+      );
+    }
+    return total;
+  }
+
+  /**
    * 저장된 값을 그대로 되돌린다.
    *
    * 이어하기 전용이다. 일반 경로로는 캐고 제련해야만 늘어나므로, 값을 직접

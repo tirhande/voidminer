@@ -293,10 +293,19 @@
       /* 목표는 화면 위쪽 가운데에 둔다. 시선이 조준점 근처에 머무르므로
          멀지 않으면서, 조준 대상 표시와는 위아래로 갈린다. */
       /* 다 끝나면 걷는다. 사라지는 것이 보이도록 천천히 흐려진다. */
+      /* 이번 판에서 끝냈을 때. 사라지는 것이 보이도록 천천히 흐려진다. */
       #hud-objective.is-gone {
         opacity: 0;
         transition: opacity 1.2s ease;
         pointer-events: none;
+      }
+
+      /*
+       * 켜자마자 이미 끝나 있을 때. 서서히 지우면 그 1.2 초 동안 지난 판의
+       * 문구가 보인다. 축하할 것이 없으므로 처음부터 없는 것과 같아야 한다.
+       */
+      #hud-objective.is-off {
+        display: none;
       }
 
       #hud-objective {
@@ -629,14 +638,20 @@
         border-color: rgba(127, 227, 255, 0.6);
       }
 
-      /* 올려보면 더 나오는 것이 있다는 표시. 안 그러면 있는 줄도 모른다. */
-      .station-button.has-hint {
+      /*
+       * 올려보면 더 나오는 것이 있다는 표식. 안 그러면 있는 줄도 모른다.
+       *
+       * 버튼이 아니라 이 표식이 설명을 갖는다. 버튼에 걸면 읽으려고 올렸다가
+       * 그대로 눌러 업그레이드가 되어버린다.
+       */
+      .hint-badge {
+        margin-left: 5px;
+        color: var(--hud-dim);
         cursor: help;
       }
 
-      .station-button.has-hint .label::after {
-        content: " ⓘ";
-        color: var(--hud-dim);
+      .hint-badge:hover {
+        color: var(--hud-cyan);
       }
 
       .station-button:focus-visible {

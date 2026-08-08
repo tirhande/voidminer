@@ -709,17 +709,23 @@ function describeOperations(cargo: Cargo, stock: StationStock): StationButton[] 
     // 지름길이라 수량을 받지 않는다. 대개는 이쪽이면 충분하다.
     {
       label: "전부 제련",
-      detail: `광석 ${SMELTING.OrePerIngot} → 주괴 1`,
+      detail:
+        stock.smeltableIngots > 0
+          ? `주괴 ${stock.smeltableIngots} 개가 나온다`
+          : `광석이 한 종류에 ${SMELTING.OrePerIngot} 개는 모여야 한다`,
       hint: "",
       action: { kind: "SMELT_ALL" },
-      isAvailable: stock.totalOre >= SMELTING.OrePerIngot,
+      isAvailable: stock.smeltableIngots > 0,
     },
     {
       label: "전부 합금",
-      detail: `주광물 주괴 ${SMELTING.PrimaryIngotPerAlloy} + 짝 주괴 ${SMELTING.PairIngotPerAlloy} → 합금 1`,
+      detail:
+        stock.alloyableCount > 0
+          ? `합금 ${stock.alloyableCount} 개가 나온다`
+          : `주광물 주괴 ${SMELTING.PrimaryIngotPerAlloy} 과 짝 주괴 ${SMELTING.PairIngotPerAlloy} 이 맞아야 한다`,
       hint: "",
       action: { kind: "ALLOY_ALL" },
-      isAvailable: stock.totalIngots > 0,
+      isAvailable: stock.alloyableCount > 0,
     },
   ];
 }

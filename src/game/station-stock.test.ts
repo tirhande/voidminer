@@ -340,3 +340,43 @@ describe("진행 순환", () => {
     expect(equipment.evaluateMining(iron).isAllowed).toBe(true);
   });
 });
+
+describe("전부 처리 가능 여부", () => {
+  it("광석 총합이 아니라 광물별로 센다", () => {
+    // 구리 3 과 주석 3 은 합쳐서 6 이지만 제련은 광물마다 따로 이뤄지므로
+    // 한 개도 안 나온다. 총합으로 판정하면 눌러도 아무 일이 없는 버튼이 된다.
+    const stock: StationStock = new StationStock();
+    stock.restoreOre(RESOURCE.Copper, 3);
+    stock.restoreOre(RESOURCE.Tin, 3);
+
+    expect(stock.totalOre).toBeGreaterThanOrEqual(SMELTING.OrePerIngot);
+    expect(stock.smeltableIngots).toBe(0);
+    expect(stock.smeltAll()).toBe(0);
+  });
+
+  it("한 광물이 모이면 그만큼 센다", () => {
+    const stock: StationStock = new StationStock();
+    stock.restoreOre(RESOURCE.Copper, 9);
+
+    expect(stock.smeltableIngots).toBe(2);
+  });
+
+  it("합금은 짝이 맞아야 센다", () => {
+    // 구리 주괴가 아무리 많아도 주석 주괴가 없으면 청동은 안 나온다.
+    const stock: StationStock = new StationStock();
+    stock.restoreIngots(RESOURCE.Copper, 30);
+
+    expect(stock.totalIngots).toBeGreaterThan(0);
+    expect(stock.alloyableCount).toBe(0);
+    expect(stock.alloyAll()).toBe(0);
+  });
+
+  it("짝이 맞으면 만들 수 있는 만큼 센다", () => {
+    const stock: StationStock = new StationStock();
+    stock.restoreIngots(RESOURCE.Copper, 9);
+    stock.restoreIngots(RESOURCE.Tin, 2);
+
+    // 구리로는 3 개, 주석으로는 2 개. 적은 쪽이 한도다.
+    expect(stock.alloyableCount).toBe(2);
+  });
+});

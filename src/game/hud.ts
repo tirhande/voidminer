@@ -93,6 +93,8 @@ export class Hud {
   private lastStationSignature: string = "";
   private lastObjectiveSignature: string = "";
   private objectiveFadeTimer: number | null = null;
+  /** 목표를 한 번이라도 그렸는지. 켜자마자 끝나 있는 경우를 가른다 */
+  private objectiveSeen: boolean = false;
   private stationActionCallback: ((action: StationAction) => void) | null = null;
   private quantityCallback: ((quantity: number) => void) | null = null;
   /**
@@ -404,6 +406,16 @@ export class Hud {
    * 상태를 전제해야 첫 화면에서 막히지 않는다.
    */
   public updateObjective(view: ObjectiveView): void {
+    // 켜자마자 이미 끝나 있으면 축하할 것이 없다. 지난 판에 본 문구를 새로
+    // 고칠 때마다 다시 띄우면 안내가 아니라 방해다.
+    if (!this.objectiveSeen) {
+      this.objectiveSeen = true;
+      if (view.isComplete) {
+        this.elements.objectiveContainer.classList.add("is-off");
+        return;
+      }
+    }
+
     const signature: string = `${view.completedCount}|${view.text ?? ""}`;
     if (signature === this.lastObjectiveSignature) {
       return;
@@ -804,9 +816,19 @@ export class Hud {
 
     // 얼마나 좋아지는지는 올렸을 때만 보여준다. 한 번 알면 다시 안 보는
     // 것이라 늘 띄워두면 읽히지도 않으면서 줄만 길어진다.
+    //
+    // 버튼 전체가 아니라 표식 하나가 설명을 갖는다. 버튼에 걸면 올려본 자리와
+    // 누르는 자리가 같아져서, 읽으려고 올렸다가 그대로 눌러버린다.
     if (button.hint.length > 0) {
-      element.title = button.hint;
-      element.classList.add("has-hint");
+      const badge: HTMLSpanElement = document.createElement("span");
+      badge.className = "hint-badge";
+      badge.textContent = "ⓘ";
+      badge.title = button.hint;
+      // 표식을 눌러도 아무 일이 없어야 한다. 읽으려고 누른 것이기 때문이다.
+      badge.addEventListener("click", (event: MouseEvent) => {
+        event.stopPropagation();
+      });
+      label.append(badge);
     }
 
     element.append(label, detail);
