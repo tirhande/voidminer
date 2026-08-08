@@ -83,9 +83,11 @@ export async function loadModels(): Promise<ModelLibrary> {
         return [mineral, await loadModel(modelUrlFor(mineral))];
       }),
     ),
-    loadModel("models/ship_standard.glb", NORMALIZE.Length),
-    loadModel("models/mod_mining_laser_t1.glb"),
-    loadModel("models/mod_tractor_beam_t1.glb"),
+    // `_web` 은 웹용 경량 판이다. 형상과 소켓은 같고 텍스처만 줄였다. 원본은
+    // 유니티가 쓰므로 지우지 않고 이름을 나눠 둔다.
+    loadModel("models/ship_standard_web.glb", NORMALIZE.Length),
+    loadModel("models/mod_mining_laser_t1_web.glb"),
+    loadModel("models/mod_tractor_beam_t1_web.glb"),
   ]);
 
   const asteroids: Map<MineralId, THREE.Object3D> = new Map();
