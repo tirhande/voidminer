@@ -164,17 +164,40 @@ describe("거점 화면", () => {
     return found;
   }
 
-  it("보유한 자원만 격자에 나온다", () => {
+  it("칸 수와 자리가 항상 같다", () => {
+    // 없는 것을 감추면 남은 칸이 앞으로 밀려 같은 광물이 매번 다른 자리에
+    // 놓인다. 그러면 격자가 아니라 목록이다.
+    const setup = buildSetup();
+    const before = step(setup, setup.docked).storage.map((cell) => cell.key);
+
+    setup.cargo.add(RESOURCE.Copper, 20);
+    setup.console.execute({ kind: "UNLOAD" }, setup.cargo, setup.stock, setup.equipment);
+    const after = step(setup, setup.docked).storage.map((cell) => cell.key);
+
+    expect(after).toEqual(before);
+  });
+
+  it("보유량이 칸에 적힌다", () => {
     const setup = buildSetup();
     setup.cargo.add(RESOURCE.Copper, 20);
     setup.console.execute({ kind: "UNLOAD" }, setup.cargo, setup.stock, setup.equipment);
 
-    const view = step(setup, setup.docked);
+    const cell = findCell(step(setup, setup.docked), `ore:${RESOURCE.Copper}`);
 
-    // 빈 칸 스물넷을 늘 띄워두면 무엇이 있는지가 안 읽힌다.
-    expect(view.storage).toHaveLength(1);
-    expect(view.storage[0].name).toContain("구리");
-    expect(view.storage[0].badge).toBe("20");
+    expect(cell.badge).toBe("20");
+    expect(cell.isEmpty).toBe(false);
+  });
+
+  it("빈 칸은 무엇이 필요한지 알려준다", () => {
+    // 없는 것을 비워만 두면 왜 없는지 알 길이 없다.
+    const setup = buildSetup();
+
+    const cell = findCell(step(setup, setup.docked), `ore:${RESOURCE.Iridium}`);
+
+    expect(cell.isEmpty).toBe(true);
+    expect(cell.badge).toBe("");
+    expect(cell.detail).toContain("T6");
+    expect(cell.actions).toHaveLength(0);
   });
 
   it("광석과 주괴가 같은 격자에 놓인다", () => {
@@ -186,7 +209,9 @@ describe("거점 화면", () => {
     const view = step(setup, setup.docked);
 
     // 종류마다 열을 따로 두면 결국 오가야 한다 (GDD 09).
-    expect(view.storage.some((cell) => cell.kind === "INGOT")).toBe(true);
+    expect(
+      view.storage.some((cell) => cell.kind === "INGOT" && !cell.isEmpty),
+    ).toBe(true);
   });
 
   it("칸을 고르면 거기서 팔 수 있다", () => {
@@ -211,7 +236,9 @@ describe("거점 화면", () => {
     setup.console.execute({ kind: "ALLOY_ALL" }, setup.cargo, setup.stock, setup.equipment);
 
     const view = step(setup, setup.docked);
-    const alloys = view.storage.filter((cell) => cell.kind === "ALLOY");
+    const alloys = view.storage.filter(
+      (cell) => cell.kind === "ALLOY" && !cell.isEmpty,
+    );
 
     // 제작 재료다. 팔 수 있으면 다음 티어로 가는 길이 끊긴다.
     expect(alloys.length).toBeGreaterThan(0);

@@ -258,8 +258,20 @@
 
       #hud-station .cell-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(46px, 1fr));
         gap: 6px;
+      }
+
+      /*
+       * 여덟 열 고정. 광석 여덟이 첫 줄, 주괴 여덟이 둘째 줄, 합금 넷이 셋째
+       * 줄에 놓인다. 열 수가 화면 폭에 따라 바뀌면 같은 광물이 매번 다른 자리로
+       * 가서 위치를 외울 수 없다.
+       */
+      #station-storage {
+        grid-template-columns: repeat(8, 1fr);
+      }
+
+      #station-equipment {
+        grid-template-columns: repeat(2, 1fr);
       }
 
       /*
@@ -282,6 +294,23 @@
 
       .station-cell:hover {
         background: color-mix(in srgb, var(--cell-color) 28%, transparent);
+      }
+
+      /*
+       * 빈 칸도 자리를 지킨다. 감추면 남은 칸이 앞으로 밀려 격자가 목록이 된다.
+       * 눌러보면 무엇이 필요한지 아래에 나오므로 빈 칸에도 쓸모가 있다.
+       */
+      .station-cell.is-empty {
+        border-color: rgba(127, 227, 255, 0.14);
+        background: rgba(127, 227, 255, 0.03);
+      }
+
+      .station-cell.is-empty .glyph {
+        opacity: 0.24;
+      }
+
+      .station-cell.is-empty:hover {
+        background: rgba(127, 227, 255, 0.09);
       }
 
       .station-cell.is-selected {

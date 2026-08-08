@@ -307,7 +307,7 @@ export class Hud {
 
     const signature: string = JSON.stringify([
       view.credits,
-      view.storage.map((cell) => [cell.key, cell.badge]),
+      view.storage.map((cell) => cell.badge),
       view.equipment.map((cell) => [
         cell.badge,
         cell.actions.map((button) => [button.label, button.detail, button.isAvailable]),
@@ -335,9 +335,7 @@ export class Hud {
     }
 
     this.elements.stationStorage.replaceChildren(
-      ...(view.storage.length === 0
-        ? [buildEmptyRow("저장고가 비어 있다")]
-        : view.storage.map((cell) => this.buildCell(cell))),
+      ...view.storage.map((cell) => this.buildCell(cell)),
     );
     this.elements.stationEquipment.replaceChildren(
       ...view.equipment.map((cell) => this.buildCell(cell)),
@@ -366,6 +364,7 @@ export class Hud {
     const element: HTMLButtonElement = document.createElement("button");
     element.className = `station-cell kind-${cell.kind.toLowerCase()}`;
     element.classList.toggle("is-selected", cell.key === this.selectedCellKey);
+    element.classList.toggle("is-empty", cell.isEmpty);
     element.style.setProperty("--cell-color", toCssColor(cell.color));
     element.title = cell.name;
 

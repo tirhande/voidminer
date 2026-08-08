@@ -88,6 +88,8 @@ export type StationCell = {
   /** 칸 구석에 적는 수량이나 등급 */
   readonly badge: string;
   readonly kind: StationCellKind;
+  /** 보유량이 0 인지. 자리는 지키되 흐리게 둔다 */
+  readonly isEmpty: boolean;
   /** 아래 상세 줄에 적을 설명 */
   readonly detail: string;
   /** 이 칸을 골랐을 때 할 수 있는 일 */
@@ -203,7 +205,7 @@ export class StationConsole {
       isDockPromptVisible: !this.docked && isInRange,
       distance,
       credits: stock.credits,
-      storage: describeStorage(stock),
+      storage: describeStorage(stock, equipment),
       equipment: describeEquipment(stock, equipment),
       operations: describeOperations(cargo, stock),
       systems: describeSystems(this.system, equipment),
@@ -293,79 +295,115 @@ export class StationConsole {
 }
 
 /**
+ * 그 광물을 지금 장비로 캘 수 있는지 한 줄로 적는다.
+ *
+ * 빈 칸에 무엇이 필요한지가 적혀 있어야 격자가 목록 노릇을 한다. 없는 것을
+ * 비워만 두면 왜 없는지 알 길이 없다.
+ */
+function describeRequirement(mineral: MineralId, equipment: ShipEquipment): string {
+  const definition = MINERAL_DEFINITIONS[mineral];
+  const isUnlocked: boolean =
+    equipment.laserTier > definition.requiredLaserTier ||
+    (equipment.laserTier === definition.requiredLaserTier &&
+      equipment.laserUpgrade >= definition.requiredLaserUpgrade);
+
+  if (isUnlocked) {
+    return "캘 수 있다. 이 광물이 나오는 항성계로 가면 된다";
+  }
+  return definition.requiredLaserUpgrade > 0
+    ? `레이저 T${definition.requiredLaserTier} 강화 ${definition.requiredLaserUpgrade} 이상이 필요하다`
+    : `레이저 T${definition.requiredLaserTier} 이상이 필요하다`;
+}
+
+/**
  * 화물 열의 격자.
  *
  * 광석·주괴·합금을 한 격자에 늘어놓는다. 종류마다 열을 따로 두면 결국 오가야
  * 하고, 그것이 GDD 09 가 거부한 구조다.
  *
- * 보유량이 0 인 것은 감춘다. 빈 칸 스물넷을 늘 띄워두면 무엇이 있는지가 안
- * 읽힌다.
+ * 칸은 항상 스물이고 자리가 바뀌지 않는다. 없는 것을 감추면 남은 칸이 앞으로
+ * 밀려 같은 광물이 매번 다른 자리에 놓인다. 그러면 격자가 아니라 목록이다.
+ * 빈 칸도 자리를 지켜야 눈이 위치를 외운다.
  */
-function describeStorage(stock: StationStock): StationCell[] {
+function describeStorage(stock: StationStock, equipment: ShipEquipment): StationCell[] {
   const cells: StationCell[] = [];
 
   for (const mineral of MINERAL_ORDER) {
     const definition = MINERAL_DEFINITIONS[mineral];
     const ore: number = stock.oreOf(mineral);
-    if (ore > 0) {
-      cells.push({
-        key: `ore:${mineral}`,
-        name: `${definition.displayName} 광석`,
-        short: definition.displayName.charAt(0),
-        color: definition.color,
-        badge: `${ore}`,
-        kind: STATION_CELL.Ore,
-        detail: `제련하면 주괴가 된다. 파는 값은 개당 ${SELL_PRICE.Ore} 크레딧`,
-        actions: [
-          {
-            label: "팔기",
-            detail: `${ore * SELL_PRICE.Ore} 크레딧`,
-            action: { kind: "SELL_ORE", mineral },
-            isAvailable: true,
-          },
-        ],
-      });
-    }
+    cells.push({
+      key: `ore:${mineral}`,
+      name: `${definition.displayName} 광석`,
+      short: definition.displayName.charAt(0),
+      color: definition.color,
+      badge: ore > 0 ? `${ore}` : "",
+      kind: STATION_CELL.Ore,
+      isEmpty: ore === 0,
+      detail:
+        ore > 0
+          ? `제련하면 주괴가 된다. 파는 값은 개당 ${SELL_PRICE.Ore} 크레딧`
+          : describeRequirement(mineral, equipment),
+      actions:
+        ore > 0
+          ? [
+              {
+                label: "팔기",
+                detail: `${ore * SELL_PRICE.Ore} 크레딧`,
+                action: { kind: "SELL_ORE", mineral },
+                isAvailable: true,
+              },
+            ]
+          : [],
+    });
   }
 
   for (const mineral of MINERAL_ORDER) {
     const definition = MINERAL_DEFINITIONS[mineral];
     const ingots: number = stock.ingotsOf(mineral);
-    if (ingots > 0) {
-      cells.push({
-        key: `ingot:${mineral}`,
-        name: `${definition.displayName} 주괴`,
-        short: definition.displayName.charAt(0),
-        color: definition.color,
-        badge: `${ingots}`,
-        kind: STATION_CELL.Ingot,
-        detail: `장비 강화와 합금에 쓴다. 파는 값은 개당 ${SELL_PRICE.Ingot} 크레딧`,
-        actions: [
-          {
-            label: "팔기",
-            detail: `${ingots * SELL_PRICE.Ingot} 크레딧`,
-            action: { kind: "SELL_INGOTS", mineral },
-            isAvailable: true,
-          },
-        ],
-      });
-    }
+    cells.push({
+      key: `ingot:${mineral}`,
+      name: `${definition.displayName} 주괴`,
+      short: definition.displayName.charAt(0),
+      color: definition.color,
+      badge: ingots > 0 ? `${ingots}` : "",
+      kind: STATION_CELL.Ingot,
+      isEmpty: ingots === 0,
+      detail:
+        ingots > 0
+          ? `장비 강화와 합금에 쓴다. 파는 값은 개당 ${SELL_PRICE.Ingot} 크레딧`
+          : `${definition.displayName} 광석 ${SMELTING.OrePerIngot} 개를 제련하면 하나가 된다`,
+      actions:
+        ingots > 0
+          ? [
+              {
+                label: "팔기",
+                detail: `${ingots * SELL_PRICE.Ingot} 크레딧`,
+                action: { kind: "SELL_INGOTS", mineral },
+                isAvailable: true,
+              },
+            ]
+          : [],
+    });
   }
 
   for (const alloy of ALLOY_ORDER) {
-    const count: number = stock.alloysOf(alloy);
-    if (count === 0) {
-      continue;
-    }
     const definition = ALLOY_DEFINITIONS[alloy as AlloyId];
+    const count: number = stock.alloysOf(alloy);
+    const primary: string = MINERAL_DEFINITIONS[definition.primary].displayName;
+    const pair: string = MINERAL_DEFINITIONS[definition.pair].displayName;
+
     cells.push({
       key: `alloy:${alloy}`,
       name: definition.displayName,
       short: definition.displayName.charAt(0),
       color: definition.color,
-      badge: `${count}`,
+      badge: count > 0 ? `${count}` : "",
       kind: STATION_CELL.Alloy,
-      detail: "다음 티어 장비를 제작하는 재료다. 팔지 않는다",
+      isEmpty: count === 0,
+      detail:
+        count > 0
+          ? "다음 티어 장비를 제작하는 재료다. 팔지 않는다"
+          : `${primary} 주괴 ${SMELTING.PrimaryIngotPerAlloy} 과 ${pair} 주괴 ${SMELTING.PairIngotPerAlloy} 로 만든다`,
       actions: [],
     });
   }
@@ -462,6 +500,7 @@ function describeEquipment(
   return [
     {
       key: "equipment:laser",
+      isEmpty: false,
       name: "채굴 레이저",
       short: "레",
       color: PALETTE.Active,
@@ -491,6 +530,7 @@ function describeEquipment(
     },
     {
       key: "equipment:tractor",
+      isEmpty: false,
       name: "견인빔",
       short: "견",
       color: PALETTE.Signal,
