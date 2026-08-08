@@ -1,4 +1,5 @@
 import type { Cargo, CargoEntry } from "./cargo";
+import { CONTROL_HELP, KEY_BINDING } from "./controls";
 import type { ShipEquipment } from "./equipment";
 import type { FlightInputState } from "./flight-input";
 import { resourceColor, resourceDisplayName } from "./minerals";
@@ -19,6 +20,8 @@ type HudElements = {
   readonly assist: HTMLElement;
   readonly tractor: HTMLElement;
   readonly overlay: HTMLElement;
+  readonly controls: HTMLElement;
+  readonly controlsGroups: HTMLElement;
   readonly aimContainer: HTMLElement;
   readonly aimMineral: HTMLElement;
   readonly aimRemaining: HTMLElement;
@@ -92,6 +95,8 @@ export class Hud {
       assist: requireElement("readout-assist"),
       tractor: requireElement("readout-tractor"),
       overlay: requireElement("overlay"),
+      controls: requireElement("hud-controls"),
+      controlsGroups: requireElement("controls-groups"),
       aimContainer: requireElement("hud-aim"),
       aimMineral: requireElement("aim-mineral"),
       aimRemaining: requireElement("aim-remaining"),
@@ -121,6 +126,7 @@ export class Hud {
     };
 
     this.elements.cargoCapacity.textContent = "0";
+    this.bindControlsLayer();
   }
 
   /** 시작 오버레이가 클릭되면 콜백을 호출한다. */
@@ -352,6 +358,58 @@ export class Hud {
 
     this.renderDetail(selected);
     this.elements.stationMessage.textContent = view.message;
+  }
+
+  /**
+   * 조작법 레이어를 채우고 여닫기를 건다.
+   *
+   * 목록을 키 배치에서 그대로 만들어낸다. 화면에 손으로 적어두면 배치를 바꿀
+   * 때 한쪽만 고치게 되고, 그러면 화면이 거짓말을 한다.
+   *
+   * 여닫기를 FlightInput 이 아니라 여기서 듣는 이유는 시작 화면 때문이다.
+   * 조종을 시작하기 전에는 입력이 잠겨 있어서, 인트로에서 안내한 키가 정작
+   * 그 화면에서 안 먹는 일이 생긴다.
+   */
+  private bindControlsLayer(): void {
+    this.elements.controlsGroups.replaceChildren(
+      ...CONTROL_HELP.map((group) => {
+        const block: HTMLDivElement = document.createElement("div");
+
+        const title: HTMLDivElement = document.createElement("div");
+        title.className = "group-title";
+        title.textContent = group.title;
+        block.append(title);
+
+        for (const entry of group.entries) {
+          const row: HTMLDivElement = document.createElement("div");
+          row.className = "entry";
+
+          const keys: HTMLSpanElement = document.createElement("span");
+          keys.className = "keys";
+          keys.textContent = entry.keys;
+
+          const label: HTMLSpanElement = document.createElement("span");
+          label.textContent = entry.label;
+
+          row.append(keys, label);
+          block.append(row);
+        }
+
+        return block;
+      }),
+    );
+
+    window.addEventListener("keydown", (event: KeyboardEvent) => {
+      if (event.code !== KEY_BINDING.Help || event.repeat) {
+        return;
+      }
+      this.elements.controls.classList.toggle("is-hidden");
+    });
+
+    // 레이어 자체를 눌러도 닫힌다. 여는 키를 잊어도 빠져나올 수 있어야 한다.
+    this.elements.controls.addEventListener("click", () => {
+      this.elements.controls.classList.add("is-hidden");
+    });
   }
 
   /**

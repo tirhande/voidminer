@@ -52,12 +52,79 @@
         color: var(--hud-dim);
       }
 
+      /*
+       * 조작법은 평소에 감춰둔다. HUD 는 볼 필요가 없을 때 눈에 안 띄어야
+       * 한다는 것이 GDD 09 의 요구다. 조작을 외운 뒤로는 화면 구석을 차지할
+       * 이유가 없다.
+       */
       #hud-controls {
-        right: 24px;
-        bottom: 24px;
-        text-align: right;
-        line-height: 1.7;
+        inset: 0;
+        /*
+         * 시작 화면보다 위에 놓는다. 인트로에서 H 를 안내해놓고 눌렀을 때
+         * 시작 화면 뒤에서 열리면 아무 일도 안 일어난 것으로 보인다.
+         */
+        z-index: 20;
+        display: grid;
+        place-items: center;
+        background: rgba(2, 4, 9, 0.72);
+        pointer-events: auto;
+      }
+
+      #hud-controls.is-hidden {
+        display: none;
+      }
+
+      #hud-controls .sheet {
+        width: min(560px, 88vw);
+        max-height: 84vh;
+        overflow-y: auto;
+        padding: 22px 26px;
+        border: 1px solid rgba(127, 227, 255, 0.28);
+        background: rgba(4, 8, 16, 0.96);
+        display: grid;
+        gap: 16px;
+      }
+
+      #hud-controls header {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+      }
+
+      #hud-controls h2 {
+        font-size: 13px;
+        font-weight: 500;
+        letter-spacing: 0.3em;
         color: var(--hud-dim);
+      }
+
+      #hud-controls .close-hint {
+        font-size: 11px;
+        color: var(--hud-dim);
+      }
+
+      #hud-controls .groups {
+        display: grid;
+        gap: 14px;
+      }
+
+      #hud-controls .group-title {
+        font-size: 11px;
+        letter-spacing: 0.2em;
+        color: var(--hud-dim);
+        margin-bottom: 5px;
+      }
+
+      #hud-controls .entry {
+        display: grid;
+        grid-template-columns: 92px 1fr;
+        gap: 12px;
+        font-size: 12px;
+        line-height: 1.8;
+      }
+
+      #hud-controls .entry .keys {
+        color: var(--hud-cyan);
       }
 
       #hud-reticle {
@@ -503,6 +570,27 @@
         text-shadow: 0 0 24px rgba(127, 227, 255, 0.45);
       }
 
+      #overlay .hint {
+        font-size: 12px;
+        color: var(--hud-dim);
+        line-height: 2.2;
+      }
+
+      #overlay .hint .key {
+        margin: 0 4px 0 12px;
+        padding: 2px 7px;
+        border: 1px solid rgba(127, 227, 255, 0.3);
+        color: var(--hud-cyan);
+      }
+
+      #overlay .hint .key:first-child {
+        margin-left: 0;
+      }
+
+      #overlay .hint.accent {
+        color: var(--hud-text);
+      }
+
       #overlay p {
         font-size: 13px;
         color: var(--hud-dim);
@@ -587,16 +675,32 @@
       <div><span class="label">TRC</span> <span id="readout-tractor">OFF</span></div>
     </div>
 
-    <div id="hud-controls" class="hud">
-      <div>W/S THRUST &nbsp; A/D STRAFE &nbsp; SPACE/C LIFT &nbsp; Q/E ROLL</div>
-      <div>LMB MINING LASER &nbsp; RMB TRACTOR BEAM &nbsp; F DOCK</div>
-      <div>SHIFT BOOST &nbsp; X INERTIAL ASSIST &nbsp; ESC RELEASE</div>
+    <div id="hud-controls" class="hud is-hidden">
+      <div class="sheet">
+        <header>
+          <h2>조작법</h2>
+          <span class="close-hint">H — 닫기</span>
+        </header>
+        <div class="groups" id="controls-groups"></div>
+      </div>
     </div>
 
     <div id="overlay">
       <h1>VOIDMINER</h1>
       <p>캐서 만들고, 더 좋은 것을 캔다</p>
       <p>화면을 클릭하면 조종이 시작된다</p>
+      <p class="hint">
+        <span class="key">W A S D</span> 이동
+        <span class="key">Space / C</span> 상승 · 하강
+        <span class="key">Q / E</span> 회전
+        <span class="key">Shift</span> 부스트
+      </p>
+      <p class="hint">
+        <span class="key">좌클릭</span> 채굴
+        <span class="key">우클릭</span> 견인
+        <span class="key">F</span> 도킹
+      </p>
+      <p class="hint accent"><span class="key">H</span> 를 누르면 조작법이 다시 나온다</p>
     </div>
 
     <script type="module" src="/src/main.ts"></script>
