@@ -112,12 +112,11 @@ describe("도킹 유지", () => {
     // 넘는 순간 저절로 풀린다.
     const station: Station = new Station(origin);
     const position: THREE.Vector3 = station.dockPoint.clone();
-    const rotation: THREE.Quaternion = new THREE.Quaternion();
-    const anchor = station.anchorShip(position, rotation);
+    const anchor = station.anchorShip(position);
 
     for (let round = 0; round < 60; round += 1) {
       rotate(station, 1);
-      station.holdShip(anchor, position, rotation);
+      station.holdShip(anchor, position);
       expect(station.isWithinDockRange(position)).toBe(true);
     }
   });
@@ -133,18 +132,20 @@ describe("도킹 유지", () => {
     expect(station.isWithinDockRange(position)).toBe(false);
   });
 
-  it("함선이 정거장 회전을 따라간다", () => {
-    // 위치만 옮기면 미끄러지듯 평행 이동해서 물려 있는 것으로 안 보인다.
+  it("함선 자세는 그대로 둔다", () => {
+    // 함선까지 같이 돌리면 뒤에 붙은 카메라가 통째로 돌아 배경이 계속 흐른다.
+    // 조종하지 않는 동안 화면이 저 혼자 움직이면 멀미가 난다.
     const station: Station = new Station(origin);
     const position: THREE.Vector3 = station.dockPoint.clone();
-    const rotation: THREE.Quaternion = new THREE.Quaternion();
-    const anchor = station.anchorShip(position, rotation);
-    const before: THREE.Quaternion = rotation.clone();
+    const before: THREE.Vector3 = position.clone();
+    const anchor = station.anchorShip(position);
 
     rotate(station, 30);
-    station.holdShip(anchor, position, rotation);
+    station.holdShip(anchor, position);
 
-    expect(rotation.angleTo(before)).toBeGreaterThan(0.1);
+    // 자리는 옮겨졌지만 자세를 다루는 값은 애초에 받지 않는다.
+    expect(position.equals(before)).toBe(false);
+    expect(station.isWithinDockRange(position)).toBe(true);
   });
 
   it("물린 자리가 도킹 지점에서 벗어나지 않는다", () => {
@@ -153,12 +154,11 @@ describe("도킹 유지", () => {
     const position: THREE.Vector3 = station.dockPoint.clone().add(
       new THREE.Vector3(3, -2, 1),
     );
-    const rotation: THREE.Quaternion = new THREE.Quaternion();
-    const anchor = station.anchorShip(position, rotation);
+    const anchor = station.anchorShip(position);
     const gap: number = position.distanceTo(station.dockPoint);
 
     rotate(station, 120);
-    station.holdShip(anchor, position, rotation);
+    station.holdShip(anchor, position);
 
     expect(position.distanceTo(station.dockPoint)).toBeCloseTo(gap, 3);
   });

@@ -293,7 +293,7 @@ async function bootstrap(): Promise<void> {
     if (isDocked) {
       ship.halt();
       // 도킹한 순간의 관계를 적어둔다. 이후로는 구조물이 도는 대로 따라간다.
-      dockAnchor = station.anchorShip(ship.position, ship.quaternion);
+      dockAnchor = station.anchorShip(ship.position);
     } else {
       dockAnchor = null;
       input.requestControl();
@@ -380,7 +380,7 @@ async function bootstrap(): Promise<void> {
     // 물려 있으면 구조물을 따라 돈다. 안 붙들면 계류 팔이 함선을 두고 떠나
     // 거리가 벌어지다 도킹이 저절로 풀린다.
     if (dockAnchor !== null) {
-      station.holdShip(dockAnchor, ship.position, ship.quaternion);
+      station.holdShip(dockAnchor, ship.position);
     }
     const stationView: StationView = stationConsole.update(
       flightInput,

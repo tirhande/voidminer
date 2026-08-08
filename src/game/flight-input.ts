@@ -106,6 +106,13 @@ export class FlightInput {
    */
   public requestControl(): void {
     this.engaged = true;
+
+    // 도킹 중에는 커서가 필요하다. 여기서 락을 잡으면 거점 화면의 버튼을
+    // 누를 수 없게 된다. 다른 앱에 갔다 돌아온 직후가 정확히 그 경우다.
+    if (this.dockedMode) {
+      return;
+    }
+
     const lockResult: unknown = this.canvas.requestPointerLock();
     if (lockResult instanceof Promise) {
       // 브라우저나 iframe 정책으로 거부될 수 있다. 거부돼도 조종은 유지한다.
@@ -231,6 +238,14 @@ export class FlightInput {
   };
 
   private readonly handleBlur = (): void => {
+    // 창을 벗어나면 누르고 있던 키가 눌린 채로 남는다. 돌아왔을 때 혼자
+    // 가속하고 있으면 안 되므로 조종을 끊는다.
+    //
+    // 도킹 중에는 끊지 않는다. 비행 입력이 어차피 죽어 있어서 눌린 키가 남을
+    // 일이 없고, 끊으면 거점 화면 위에 시작 화면이 덮인다.
+    if (this.dockedMode) {
+      return;
+    }
     this.releaseControl();
   };
 
