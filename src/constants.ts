@@ -7,8 +7,8 @@
 export const SHIP_TUNING = {
   /** 전/후 주추력 (m/s^2) */
   MainThrust: 30,
-  /** 좌/우 스트레이프 추력 (m/s^2) */
-  StrafeThrust: 18,
+  /** 좌/우 스트레이프 추력 (m/s^2). 주추력의 80% */
+  StrafeThrust: 24,
   /** 상/하 스트레이프 추력 (m/s^2) */
   LiftThrust: 18,
   /** 부스트 시 추력 배율 */

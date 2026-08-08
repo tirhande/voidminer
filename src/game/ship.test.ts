@@ -195,3 +195,44 @@ describe("선체 모델 장착", () => {
     expect(ship.object3D.getObjectByName("TractorBeamModule")).toBeDefined();
   });
 });
+
+describe("멈춘 동안", () => {
+  it("시간을 0 으로 주면 아무것도 변하지 않는다", () => {
+    // 조작법을 펼치거나 조종을 놓으면 세계를 세운다. 세계를 세우는 방법이
+    // 시간을 0 으로 주는 것이므로, 그때 위치도 속도도 그대로여야 한다.
+    const ship: Ship = new Ship();
+    const input: FlightInputState = buildFlightInput({ thrust: 1 });
+
+    for (let step = 0; step < 60; step += 1) {
+      ship.update(STEP_SECONDS, input);
+    }
+
+    const speed: number = ship.speed;
+    const position: THREE.Vector3 = ship.position.clone();
+
+    for (let step = 0; step < 60; step += 1) {
+      ship.update(0, input);
+    }
+
+    expect(ship.speed).toBeCloseTo(speed, 6);
+    expect(ship.position.distanceTo(position)).toBeCloseTo(0, 6);
+  });
+
+  it("다시 시간을 주면 놓았던 속도로 이어 난다", () => {
+    // 속도를 지우면 읽고 돌아올 때마다 다시 가속해야 한다. 관성이 있는
+    // 비행에서는 그것이 곧 다른 게임이 된다.
+    const ship: Ship = new Ship();
+    const thrust: FlightInputState = buildFlightInput({ thrust: 1 });
+    const idle: FlightInputState = buildFlightInput();
+
+    for (let step = 0; step < 60; step += 1) {
+      ship.update(STEP_SECONDS, thrust);
+    }
+    const speed: number = ship.speed;
+
+    ship.update(0, idle);
+    ship.update(STEP_SECONDS, idle);
+
+    expect(ship.speed).toBeCloseTo(speed, 4);
+  });
+});

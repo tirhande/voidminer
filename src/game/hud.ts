@@ -40,6 +40,7 @@ type HudElements = {
   readonly equipmentLaser: HTMLElement;
   readonly equipmentTractor: HTMLElement;
   readonly equipmentStation: HTMLElement;
+  readonly equipmentSystem: HTMLElement;
   readonly objectiveContainer: HTMLElement;
   readonly objectiveStep: HTMLElement;
   readonly objectiveText: HTMLElement;
@@ -53,6 +54,7 @@ type HudElements = {
   readonly stationDetail: HTMLElement;
   readonly stationSystems: HTMLElement;
   readonly stationSystemLabel: HTMLElement;
+  readonly stationWarpNote: HTMLElement;
   readonly stationMessage: HTMLElement;
   readonly stationUndock: HTMLElement;
   readonly stationReset: HTMLElement;
@@ -132,6 +134,7 @@ export class Hud {
       equipmentLaser: requireElement("equipment-laser"),
       equipmentTractor: requireElement("equipment-tractor"),
       equipmentStation: requireElement("equipment-station"),
+      equipmentSystem: requireElement("equipment-system"),
       objectiveContainer: requireElement("hud-objective"),
       objectiveStep: requireElement("objective-step"),
       objectiveText: requireElement("objective-text"),
@@ -145,6 +148,7 @@ export class Hud {
       stationDetail: requireElement("station-detail"),
       stationSystems: requireElement("station-systems"),
       stationSystemLabel: requireElement("station-system-label"),
+      stationWarpNote: requireElement("station-warp-note"),
       stationMessage: requireElement("station-message"),
       stationUndock: requireElement("station-undock"),
       stationReset: requireElement("station-reset"),
@@ -200,6 +204,16 @@ export class Hud {
       ? "저장된 진행에서 이어서 시작한다"
       : "진행은 자동으로 저장된다. 새로고침해도 이어진다";
     this.elements.overlayReset.classList.toggle("is-hidden", !hasSave);
+  }
+
+  /**
+   * 조작법 레이어가 열려 있는지.
+   *
+   * 열려 있는 동안에는 세계를 멈춘다. 조작법을 읽는 사이에 소행성에 부딪히거나
+   * 화물이 사라지면 읽을 수가 없다.
+   */
+  public get isControlsOpen(): boolean {
+    return !this.elements.controls.classList.contains("is-hidden");
   }
 
   /** 수량 조각을 누르면 콜백을 호출한다. */
@@ -352,7 +366,11 @@ export class Hud {
   }
 
   /** 장비 상태 표시를 갱신한다. */
-  public updateEquipment(equipment: ShipEquipment, stationDistance: number): void {
+  public updateEquipment(
+    equipment: ShipEquipment,
+    stationDistance: number,
+    systemName: string,
+  ): void {
     const laserText: string = `T${equipment.laserTier} +${equipment.laserUpgrade}`;
     if (this.elements.equipmentLaser.textContent !== laserText) {
       this.elements.equipmentLaser.textContent = laserText;
@@ -366,6 +384,12 @@ export class Hud {
     const distanceText: string = `${Math.round(stationDistance)}m`;
     if (this.elements.equipmentStation.textContent !== distanceText) {
       this.elements.equipmentStation.textContent = distanceText;
+    }
+
+    // 항성계마다 나오는 광물이 다르다. 어디에 있는지 모르면 왜 이 광물이
+    // 안 나오는지도 알 수 없다.
+    if (this.elements.equipmentSystem.textContent !== systemName) {
+      this.elements.equipmentSystem.textContent = systemName;
     }
   }
 
@@ -428,7 +452,7 @@ export class Hud {
         cell.actions.map((button) => [button.label, button.detail, button.isAvailable]),
       ]),
       view.operations.map((button) => [button.detail, button.isAvailable]),
-      view.systems.map((row) => [row.name, row.isCurrent, row.hasMinable]),
+      view.systems.map((row) => [row.name, row.isCurrent, row.hasMinable, row.isUnlocked]),
       view.systemLabel,
       view.message,
       view.quantity,
@@ -462,6 +486,8 @@ export class Hud {
     );
 
     this.elements.stationSystemLabel.textContent = view.systemLabel;
+    // 왜 못 가는지 적어둔다. 흐린 버튼만 있으면 고장으로 보인다.
+    this.elements.stationWarpNote.textContent = view.warpNote;
     this.elements.stationSystems.replaceChildren(
       ...view.systems.map((row) => this.buildSystemRow(row)),
     );
@@ -702,7 +728,7 @@ export class Hud {
   private buildSystemRow(row: SystemRow): HTMLElement {
     const element: HTMLButtonElement = document.createElement("button");
     element.className = "station-button wide system-row";
-    element.disabled = row.isCurrent;
+    element.disabled = row.isCurrent || !row.isUnlocked;
     element.classList.toggle("is-current", row.isCurrent);
     element.classList.toggle("is-locked", !row.isCurrent && !row.hasMinable);
 
@@ -713,9 +739,13 @@ export class Hud {
     const detail: HTMLSpanElement = document.createElement("span");
     detail.className = "detail";
     const minerals: string = row.minerals.join(" · ");
-    detail.textContent = row.hasMinable
-      ? `${minerals} · ${row.summary}`
-      : `${minerals} · 지금 장비로는 캘 것이 없다`;
+    if (!row.isUnlocked && !row.isCurrent) {
+      detail.textContent = `${minerals} · 아직 갈 수 없다`;
+    } else if (row.hasMinable) {
+      detail.textContent = `${minerals} · ${row.summary}`;
+    } else {
+      detail.textContent = `${minerals} · 지금 장비로는 캘 것이 없다`;
+    }
 
     element.append(label, detail);
     element.addEventListener("click", () => {

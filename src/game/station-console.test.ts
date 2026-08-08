@@ -5,6 +5,7 @@ import { STATION } from "../constants";
 import { Cargo } from "./cargo";
 import { ShipEquipment } from "./equipment";
 import { RESOURCE } from "./minerals";
+import { STAR_SYSTEM, WARP_UNLOCK_TIER } from "./star-systems";
 import { Station } from "./station";
 import {
   StationConsole,
@@ -396,5 +397,55 @@ describe("칸 아이콘", () => {
     for (const cell of view.storage) {
       expect(cell.usesQuantity).toBe(true);
     }
+  });
+});
+
+describe("항성계 이동 잠금", () => {
+  it("처음에는 옮길 수 없다", () => {
+    // 처음부터 어디든 갈 수 있으면 시작 항성계에서 배울 것을 안 배운 채 나간다.
+    const setup = buildSetup();
+    const view = step(setup, setup.docked);
+
+    expect(view.systems.every((row) => !row.isUnlocked)).toBe(true);
+    expect(view.warpNote.length).toBeGreaterThan(0);
+  });
+
+  it("잠긴 동안 눌러도 옮겨지지 않는다", () => {
+    // 화면만 막고 실제 처리를 안 막으면 다른 경로로 새어 나간다.
+    const setup = buildSetup();
+
+    setup.console.execute(
+      { kind: "WARP", system: STAR_SYSTEM.Halvex },
+      setup.cargo,
+      setup.stock,
+      setup.equipment,
+    );
+
+    expect(setup.console.takePendingWarp()).toBeNull();
+  });
+
+  it("T2 를 만들면 열린다", () => {
+    // 시작 항성계에 철이 없으므로 그때 나갈 이유가 처음 생긴다.
+    const setup = buildSetup();
+    setup.equipment.restore(WARP_UNLOCK_TIER, 0, 1);
+
+    const view = step(setup, setup.docked);
+
+    expect(view.systems.every((row) => row.isUnlocked)).toBe(true);
+    expect(view.warpNote).toBe("");
+  });
+
+  it("열린 뒤에는 옮겨진다", () => {
+    const setup = buildSetup();
+    setup.equipment.restore(WARP_UNLOCK_TIER, 0, 1);
+
+    setup.console.execute(
+      { kind: "WARP", system: STAR_SYSTEM.Halvex },
+      setup.cargo,
+      setup.stock,
+      setup.equipment,
+    );
+
+    expect(setup.console.takePendingWarp()).toBe(STAR_SYSTEM.Halvex);
   });
 });

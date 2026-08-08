@@ -323,6 +323,18 @@ async function bootstrap(): Promise<void> {
   renderer.setAnimationLoop(() => {
     // 탭이 백그라운드에 있다가 돌아오면 델타가 크게 튄다. 상한을 둔다.
     const deltaSeconds: number = Math.min(clock.getDelta(), MAX_DELTA_SECONDS);
+
+    /*
+     * 조종을 놓았거나 조작법을 펼쳤으면 세계를 멈춘다.
+     *
+     * 속도를 0 으로 만들지 않는다. 시간만 세우는 것이라 다시 잡으면 놓았던
+     * 속도 그대로 이어 난다. 속도를 지우면 읽고 돌아올 때마다 다시 가속해야
+     * 하고, 관성이 있는 비행에서는 그것이 곧 다른 게임이 된다.
+     *
+     * 도킹은 여기 해당하지 않는다. 도크에 물린 것이므로 속도가 실제로 0 이다.
+     */
+    const isPaused: boolean = !input.isEngaged || hud.isControlsOpen;
+    const simDelta: number = isPaused ? 0 : deltaSeconds;
     const flightInput: FlightInputState = input.sample();
 
     // 거점에서 누른 워프를 집어간다. 도킹을 풀어야 연출이 보인다.
@@ -338,17 +350,17 @@ async function bootstrap(): Promise<void> {
 
     // 도킹 중과 워프 중에는 비행 입력을 무시한다. 관성으로 흘러가면 안 된다.
     if (!stationConsole.isDocked && !warp.isActive) {
-      ship.update(deltaSeconds, flightInput);
+      ship.update(simDelta, flightInput);
     }
-    warp.update(deltaSeconds, chaseCamera.camera);
-    chaseCamera.update(deltaSeconds, WARP.FovGain * warp.intensity);
+    warp.update(simDelta, chaseCamera.camera);
+    chaseCamera.update(simDelta, WARP.FovGain * warp.intensity);
     nebula.follow(ship.position);
     starfield.follow(ship.position);
     dustField.wrapAround(ship.position);
 
     // 조준은 카메라 기준으로 판정해야 화면 중앙 조준점과 명중 지점이 일치한다.
     const aimReport: AimReport = miningLaser.update(
-      deltaSeconds,
+      simDelta,
       chaseCamera.camera,
       ship.position,
       ship.quaternion,
@@ -357,9 +369,9 @@ async function bootstrap(): Promise<void> {
       asteroidField,
       debrisField,
     );
-    asteroidField.update(deltaSeconds, ship.position);
+    asteroidField.update(simDelta, ship.position);
     debrisField.update(
-      deltaSeconds,
+      simDelta,
       ship.position,
       ship.velocity,
       flightInput.isTractorActive && !warp.isActive,
@@ -367,7 +379,7 @@ async function bootstrap(): Promise<void> {
       cargo,
     );
     tractorBeam.update(
-      deltaSeconds,
+      simDelta,
       flightInput.isTractorActive && !warp.isActive,
       ship.position,
       ship.quaternion,
@@ -376,7 +388,7 @@ async function bootstrap(): Promise<void> {
 
     // 거점은 도킹하는 곳이지 통과하는 곳이 아니다.
     station.resolveCollision(ship.position, ship.velocity);
-    station.update(deltaSeconds);
+    station.update(simDelta);
     // 물려 있으면 구조물을 따라 돈다. 안 붙들면 계류 팔이 함선을 두고 떠나
     // 거리가 벌어지다 도킹이 저절로 풀린다.
     if (dockAnchor !== null) {
@@ -419,7 +431,11 @@ async function bootstrap(): Promise<void> {
     hud.updateAim(aimReport);
     hud.updateObjective(objectiveView);
     hud.updateCargo(cargo);
-    hud.updateEquipment(equipment, station.distanceTo(ship.position));
+    hud.updateEquipment(
+      equipment,
+      station.distanceTo(ship.position),
+      STAR_SYSTEM_DEFINITIONS[stationConsole.currentSystem].displayName,
+    );
     hud.updateStation(stationView);
     syncDockingMode(stationView.isDocked);
 

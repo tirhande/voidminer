@@ -272,6 +272,20 @@
         color: var(--hud-dim);
       }
 
+      /*
+       * 지금 어느 항성계인지가 이 구석에서 가장 먼저 읽혀야 한다. 항성계마다
+       * 나오는 광물이 달라서, 여기를 모르면 왜 이 광물이 안 나오는지도 모른다.
+       * 장비 등급보다 위에 두고 크기와 색으로 갈라둔다.
+       */
+      #hud-equipment .system {
+        font-size: 20px;
+        letter-spacing: 0.08em;
+        color: var(--hud-cyan);
+        margin-bottom: 4px;
+        padding-bottom: 4px;
+        border-bottom: 1px solid rgba(127, 227, 255, 0.18);
+      }
+
       /* 목표는 화면 위쪽 가운데에 둔다. 시선이 조준점 근처에 머무르므로
          멀지 않으면서, 조준 대상 표시와는 위아래로 갈린다. */
       #hud-objective {
@@ -290,7 +304,7 @@
       }
 
       #hud-objective .text {
-        font-size: 15px;
+        font-size: 20px;
         letter-spacing: 0.08em;
       }
 
@@ -648,6 +662,15 @@
         background: rgba(127, 227, 255, 0.18);
       }
 
+      #hud-station .note {
+        font-size: 11px;
+        color: var(--hud-dim);
+      }
+
+      #hud-station .note:empty {
+        display: none;
+      }
+
       #hud-station .message {
         font-size: 12px;
         min-height: 1.4em;
@@ -687,8 +710,15 @@
         transition: opacity 0.35s ease;
       }
 
+      /*
+       * 숨길 때 보이지 않게까지 해야 한다. 투명하게만 두면 화면에 그대로
+       * 남아 있어서, 안쪽 버튼이 pointer-events 를 되살려 놓은 경우 그 버튼이
+       * 아래 화면의 클릭을 가로챈다. 거점 화면에서 항성계를 누르면 초기화
+       * 확인이 뜨던 것이 이것 때문이다.
+       */
       #overlay.hidden {
         opacity: 0;
+        visibility: hidden;
         pointer-events: none;
       }
 
@@ -794,6 +824,7 @@
     </div>
 
     <div id="hud-equipment" class="hud">
+      <div class="system" id="equipment-system">--</div>
       <div><span class="label">LASER</span> <span id="equipment-laser">T1</span></div>
       <div><span class="label">TRACTOR</span> <span id="equipment-tractor">T1</span></div>
       <div><span class="label">STATION</span> <span id="equipment-station">--</span></div>
@@ -837,6 +868,7 @@
         <span class="section-title">항성계</span>
         <span id="station-system-label"></span>
       </div>
+      <div class="note" id="station-warp-note"></div>
       <div class="button-grid" id="station-systems"></div>
 
       <div class="divider"></div>

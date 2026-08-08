@@ -75,7 +75,7 @@ export const OBJECTIVES: ReadonlyArray<Objective> = [
   {
     id: "DOCK",
     text: "거점으로 돌아가 도킹한다",
-    hint: "좌측 상단 STATION 거리를 보고 접근한 뒤 F 를 누른다",
+    hint: "거점 옆으로 뻗은 팔 끝이 접안구다. 그쪽으로 돌아 들어가면 F 안내가 뜬다",
     isComplete: (snapshot) => snapshot.isDocked,
   },
   {

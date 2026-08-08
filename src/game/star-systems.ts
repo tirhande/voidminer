@@ -86,6 +86,22 @@ export const STAR_SYSTEM_ORDER: ReadonlyArray<StarSystemId> = [
 export const STARTING_SYSTEM: StarSystemId = STAR_SYSTEM.Kestrel;
 
 /**
+ * 항성계 이동이 열리는 채굴 레이저 티어.
+ *
+ * 처음부터 어디든 갈 수 있으면 시작 항성계에서 배울 것을 안 배운 채 나간다.
+ * 캐고 줍고 제련하고 강화하는 한 바퀴를 여기서 다 돌게 되어 있다.
+ *
+ * T2 를 만들면 철이 필요해지는데 시작 항성계에는 철이 없다. 그때가 나갈 이유가
+ * 처음 생기는 시점이므로 거기에 맞춘다.
+ */
+export const WARP_UNLOCK_TIER = 2;
+
+/** 항성계 이동이 열렸는지. */
+export function isWarpUnlocked(laserTier: number): boolean {
+  return laserTier >= WARP_UNLOCK_TIER;
+}
+
+/**
  * 그 장비로 이 항성계에서 캘 것이 있는지.
  *
  * 못 가게 막지는 않는다. 다만 가기 전에 알 수는 있어야 한다. 목록에 적어두면

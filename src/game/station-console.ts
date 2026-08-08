@@ -19,7 +19,9 @@ import {
   STAR_SYSTEM_DEFINITIONS,
   STAR_SYSTEM_ORDER,
   STARTING_SYSTEM,
+  WARP_UNLOCK_TIER,
   hasMinableMineral,
+  isWarpUnlocked,
   type StarSystemId,
 } from "./star-systems";
 import {
@@ -131,6 +133,13 @@ export type SystemRow = {
   readonly minerals: ReadonlyArray<string>;
   /** 지금 있는 곳인지 */
   readonly isCurrent: boolean;
+  /**
+   * 갈 수 있는 상태인지.
+   *
+   * 처음부터 어디든 갈 수 있으면 시작 항성계에서 배울 것을 안 배운 채 나간다.
+   * 감추지는 않는다 — 갈 곳이 있다는 것과 무엇이 필요한지는 보여야 한다.
+   */
+  readonly isUnlocked: boolean;
   /** 지금 장비로 캘 것이 있는지 */
   readonly hasMinable: boolean;
   readonly action: StationAction;
@@ -154,6 +163,8 @@ export type StationView = {
   /** 갈 수 있는 항성계 목록 */
   readonly systems: ReadonlyArray<SystemRow>;
   readonly systemLabel: string;
+  /** 항성계를 옮길 수 없을 때 그 이유. 갈 수 있으면 빈 문자열이다 */
+  readonly warpNote: string;
   readonly message: string;
 };
 
@@ -251,6 +262,9 @@ export class StationConsole {
       operations: describeOperations(cargo, stock),
       systems: describeSystems(this.system, equipment),
       systemLabel: STAR_SYSTEM_DEFINITIONS[this.system].displayName,
+      warpNote: isWarpUnlocked(equipment.laserTier)
+        ? ""
+        : `채굴 레이저 T${WARP_UNLOCK_TIER} 를 만들면 다른 항성계로 갈 수 있다`,
       message: this.lastMessage,
     };
   }
@@ -336,6 +350,10 @@ export class StationConsole {
         break;
       }
       case "WARP": {
+        if (!isWarpUnlocked(equipment.laserTier)) {
+          this.lastMessage = `채굴 레이저 T${WARP_UNLOCK_TIER} 를 만들어야 항성계를 옮길 수 있다`;
+          break;
+        }
         if (action.system === this.system) {
           this.lastMessage = "이미 그 항성계에 있다";
           break;
@@ -574,6 +592,8 @@ function describeSystems(
   current: StarSystemId,
   equipment: ShipEquipment,
 ): SystemRow[] {
+  const unlocked: boolean = isWarpUnlocked(equipment.laserTier);
+
   return STAR_SYSTEM_ORDER.map((id): SystemRow => {
     const definition = STAR_SYSTEM_DEFINITIONS[id];
     return {
@@ -583,6 +603,7 @@ function describeSystems(
         (mineral) => MINERAL_DEFINITIONS[mineral].displayName,
       ),
       isCurrent: id === current,
+      isUnlocked: unlocked,
       hasMinable: hasMinableMineral(
         definition,
         equipment.laserTier,
