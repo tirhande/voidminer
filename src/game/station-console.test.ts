@@ -247,6 +247,17 @@ describe("거점 화면", () => {
     }
   });
 
+  it("장비 칸은 이름을 줄이지 않는다", () => {
+    // 광물은 스무 개를 정사각 칸에 늘어놓느라 첫 글자만 쓴다. 장비는 둘뿐이라
+    // 줄이면 무엇인지 알아볼 수 없다.
+    const setup = buildSetup();
+    const view = step(setup, setup.docked);
+
+    for (const cell of view.equipment) {
+      expect(cell.short).toBe(cell.name);
+    }
+  });
+
   it("장비 칸에 지금 등급이 적힌다", () => {
     const setup = buildSetup();
 

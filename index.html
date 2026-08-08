@@ -337,8 +337,9 @@
         grid-template-columns: repeat(8, 1fr);
       }
 
+      /* 장비는 둘뿐이고 이름을 그대로 적으므로 한 줄에 하나씩 눕힌다. */
       #station-equipment {
-        grid-template-columns: repeat(2, 1fr);
+        grid-template-columns: 1fr;
       }
 
       /*
@@ -403,12 +404,33 @@
         text-shadow: 0 0 3px rgba(0, 0, 0, 0.9);
       }
 
-      /* 장비 칸은 등급 표기가 길어서 칸 아래에 가로로 눕힌다. */
+      /*
+       * 장비 칸은 정사각형이 아니다. 광물처럼 스무 개를 늘어놓는 것이 아니라
+       * 둘뿐이라, 칸을 눕히고 이름을 그대로 적는 편이 읽힌다.
+       */
+      .station-cell.kind-equipment {
+        aspect-ratio: auto;
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 9px 11px;
+      }
+
+      .station-cell.kind-equipment .glyph {
+        position: static;
+        inset: auto;
+        display: block;
+        font-size: 12px;
+      }
+
       .station-cell.kind-equipment .badge {
-        left: 0;
-        right: 0;
-        text-align: center;
-        font-size: 8px;
+        position: static;
+        right: auto;
+        bottom: auto;
+        font-size: 11px;
+        color: var(--hud-dim);
+        text-shadow: none;
       }
 
       /*

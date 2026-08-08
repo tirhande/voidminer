@@ -78,10 +78,13 @@ export type StationCell = {
   readonly key: string;
   readonly name: string;
   /**
-   * 칸 안에 넣을 짧은 표기.
+   * 칸 안에 넣을 표기.
    *
-   * 아이콘 38 종이 나오기 전까지 색 사각형에 첫 글자만 넣는다 (GDD 09).
-   * 배치가 맞는지는 아이콘 없이도 판정된다.
+   * 광물은 종류가 스물이라 정사각 칸에 늘어놓고 첫 글자만 넣는다. 아이콘 38 종이
+   * 나오면 그림으로 바꾼다 (GDD 09).
+   *
+   * 장비는 둘뿐이라 줄일 이유가 없다. 이름을 그대로 적는다. 한 글자로 줄이면
+   * 무엇인지 알아볼 수 없다.
    */
   readonly short: string;
   readonly color: number;
@@ -502,7 +505,7 @@ function describeEquipment(
       key: "equipment:laser",
       isEmpty: false,
       name: "채굴 레이저",
-      short: "레",
+      short: "채굴 레이저",
       color: PALETTE.Active,
       badge: `T${equipment.laserTier}+${equipment.laserUpgrade}`,
       kind: STATION_CELL.Equipment,
@@ -532,7 +535,7 @@ function describeEquipment(
       key: "equipment:tractor",
       isEmpty: false,
       name: "견인빔",
-      short: "견",
+      short: "견인빔",
       color: PALETTE.Signal,
       badge: `T${equipment.tractorTier}`,
       kind: STATION_CELL.Equipment,
