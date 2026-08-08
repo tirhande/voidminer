@@ -87,6 +87,13 @@ export type StationCell = {
    * 무엇인지 알아볼 수 없다.
    */
   readonly short: string;
+  /**
+   * 아이콘을 찾을 열쇠. 광물이면 그 광물 id 다.
+   *
+   * 광석과 주괴가 같은 아이콘을 쓴다. 같은 물질이고 줄이 갈라 놓기 때문이다.
+   * 아이콘이 없는 칸은 빈 문자열이라 첫 글자로 대신한다.
+   */
+  readonly iconKey: string;
   readonly color: number;
   /** 칸 구석에 적는 수량이나 등급 */
   readonly badge: string;
@@ -336,6 +343,7 @@ function describeStorage(stock: StationStock, equipment: ShipEquipment): Station
     const ore: number = stock.oreOf(mineral);
     cells.push({
       key: `ore:${mineral}`,
+      iconKey: mineral,
       name: `${definition.displayName} 광석`,
       short: definition.displayName.charAt(0),
       color: definition.color,
@@ -365,6 +373,7 @@ function describeStorage(stock: StationStock, equipment: ShipEquipment): Station
     const ingots: number = stock.ingotsOf(mineral);
     cells.push({
       key: `ingot:${mineral}`,
+      iconKey: mineral,
       name: `${definition.displayName} 주괴`,
       short: definition.displayName.charAt(0),
       color: definition.color,
@@ -397,6 +406,7 @@ function describeStorage(stock: StationStock, equipment: ShipEquipment): Station
 
     cells.push({
       key: `alloy:${alloy}`,
+      iconKey: "",
       name: definition.displayName,
       short: definition.displayName.charAt(0),
       color: definition.color,
@@ -503,6 +513,7 @@ function describeEquipment(
   return [
     {
       key: "equipment:laser",
+      iconKey: "",
       isEmpty: false,
       name: "채굴 레이저",
       short: "채굴 레이저",
@@ -533,6 +544,7 @@ function describeEquipment(
     },
     {
       key: "equipment:tractor",
+      iconKey: "",
       isEmpty: false,
       name: "견인빔",
       short: "견인빔",

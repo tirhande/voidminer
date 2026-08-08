@@ -1,4 +1,4 @@
-import type { Cargo, CargoEntry } from "./cargo";
+import type { Cargo, CargoEntry, CargoSlot } from "./cargo";
 import { CONTROL_HELP, KEY_BINDING } from "./controls";
 import type { ShipEquipment } from "./equipment";
 import type { FlightInputState } from "./flight-input";
@@ -21,6 +21,9 @@ type HudElements = {
   readonly tractor: HTMLElement;
   readonly overlay: HTMLElement;
   readonly controls: HTMLElement;
+  readonly inventory: HTMLElement;
+  readonly inventorySlots: HTMLElement;
+  readonly inventoryUsage: HTMLElement;
   readonly controlsGroups: HTMLElement;
   readonly aimContainer: HTMLElement;
   readonly aimMineral: HTMLElement;
@@ -87,6 +90,13 @@ export class Hud {
    * 콘솔까지 올리지 않는다.
    */
   private selectedCellKey: string | null = null;
+  /**
+   * 광물별 아이콘. 소행성 모델을 구워 만든 그림이다.
+   *
+   * 없으면 첫 글자로 대신한다. 모델이 없어도 게임이 돌아가야 하므로 아이콘도
+   * 없는 것이 정상 경로다.
+   */
+  private icons: ReadonlyMap<string, string> = new Map();
 
   public constructor() {
     this.elements = {
@@ -96,6 +106,9 @@ export class Hud {
       tractor: requireElement("readout-tractor"),
       overlay: requireElement("overlay"),
       controls: requireElement("hud-controls"),
+      inventory: requireElement("hud-inventory"),
+      inventorySlots: requireElement("inventory-slots"),
+      inventoryUsage: requireElement("inventory-usage"),
       controlsGroups: requireElement("controls-groups"),
       aimContainer: requireElement("hud-aim"),
       aimMineral: requireElement("aim-mineral"),
@@ -127,6 +140,18 @@ export class Hud {
 
     this.elements.cargoCapacity.textContent = "0";
     this.bindControlsLayer();
+    this.bindInventoryLayer();
+  }
+
+  /**
+   * 격자에 쓸 아이콘을 넘긴다.
+   *
+   * 소행성 모델을 그대로 굽는다. 광물마다 생김새가 다르므로 우주에서 본 것과
+   * 저장고에 든 것이 같은 물건으로 읽힌다.
+   */
+  public setIcons(icons: ReadonlyMap<string, string>): void {
+    this.icons = icons;
+    this.lastStationSignature = "";
   }
 
   /** 시작 오버레이가 클릭되면 콜백을 호출한다. */
@@ -222,6 +247,8 @@ export class Hud {
     this.elements.cargoTotal.textContent = Math.floor(cargo.total).toString();
     this.elements.cargoCapacity.textContent = cargo.capacity.toString();
     this.elements.cargoContainer.classList.toggle("full", cargo.isFull);
+
+    this.renderInventory(cargo);
 
     this.elements.cargoRows.replaceChildren(
       ...entries.map((entry) => {
@@ -361,6 +388,84 @@ export class Hud {
   }
 
   /**
+   * 화물칸 격자를 그린다.
+   *
+   * 칸 그대로 보여준다. 한 칸에 담기는 양이 정해져 있으므로 종류를 늘리면 칸이
+   * 먼저 떨어진다. 그 사정이 숫자 합계로는 안 보이고 칸으로만 보인다.
+   *
+   * 빈 칸도 자리를 지킨다. 몇 칸이 남았는지가 지금 캘지 돌아갈지를 정한다.
+   */
+  private renderInventory(cargo: Cargo): void {
+    const slots: CargoSlot[] = cargo.slots();
+    const cells: HTMLElement[] = [];
+
+    for (let index = 0; index < cargo.slotCount; index += 1) {
+      const slot: CargoSlot | undefined = slots[index];
+      const element: HTMLDivElement = document.createElement("div");
+      element.className = "station-cell";
+
+      if (slot === undefined) {
+        element.classList.add("is-empty");
+        element.style.setProperty("--cell-color", "rgba(127, 227, 255, 0.5)");
+        cells.push(element);
+        continue;
+      }
+
+      const color: number = resourceColor(slot.resource);
+      element.style.setProperty("--cell-color", toCssColor(color));
+      element.title = resourceDisplayName(slot.resource);
+
+      const icon: string | undefined = this.icons.get(slot.resource);
+      const glyph: HTMLElement = document.createElement(
+        icon === undefined ? "span" : "img",
+      );
+      glyph.className = "glyph";
+      if (glyph instanceof HTMLImageElement) {
+        glyph.src = icon as string;
+        glyph.alt = resourceDisplayName(slot.resource);
+      } else {
+        glyph.textContent = resourceDisplayName(slot.resource).charAt(0);
+      }
+
+      const badge: HTMLSpanElement = document.createElement("span");
+      badge.className = "badge";
+      badge.textContent = `x${Math.floor(slot.amount)}`;
+
+      element.append(glyph, badge);
+      cells.push(element);
+    }
+
+    this.elements.inventorySlots.replaceChildren(...cells);
+    this.elements.inventoryUsage.textContent = `${cargo.usedSlots} / ${cargo.slotCount} 칸`;
+  }
+
+  /**
+   * 화물칸 레이어의 여닫기를 건다.
+   *
+   * 비행 중에도 열린다. 화물이 칸 단위가 되면서 무엇이 몇 칸을 먹고 있는지가
+   * 지금 캘지 돌아갈지를 정하는 정보가 됐다.
+   *
+   * Tab 은 브라우저가 초점을 옮기는 데 쓰는 키다. 막지 않으면 화면 뒤에서
+   * 버튼에 초점이 옮겨 다녀 엉뚱한 것이 눌린다.
+   */
+  private bindInventoryLayer(): void {
+    window.addEventListener("keydown", (event: KeyboardEvent) => {
+      if (event.code !== KEY_BINDING.Inventory) {
+        return;
+      }
+      event.preventDefault();
+      if (event.repeat) {
+        return;
+      }
+      this.elements.inventory.classList.toggle("is-hidden");
+    });
+
+    this.elements.inventory.addEventListener("click", () => {
+      this.elements.inventory.classList.add("is-hidden");
+    });
+  }
+
+  /**
    * 조작법 레이어를 채우고 여닫기를 건다.
    *
    * 목록을 키 배치에서 그대로 만들어낸다. 화면에 손으로 적어두면 배치를 바꿀
@@ -426,9 +531,15 @@ export class Hud {
     element.style.setProperty("--cell-color", toCssColor(cell.color));
     element.title = cell.name;
 
-    const glyph: HTMLSpanElement = document.createElement("span");
+    const icon: string | undefined = this.icons.get(cell.iconKey);
+    const glyph: HTMLElement = document.createElement(icon === undefined ? "span" : "img");
     glyph.className = "glyph";
-    glyph.textContent = cell.short;
+    if (glyph instanceof HTMLImageElement) {
+      glyph.src = icon as string;
+      glyph.alt = cell.name;
+    } else {
+      glyph.textContent = cell.short;
+    }
 
     const badge: HTMLSpanElement = document.createElement("span");
     badge.className = "badge";

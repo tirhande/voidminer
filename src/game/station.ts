@@ -6,6 +6,9 @@ import { EMISSION, PALETTE, POINT_LIGHT, SURFACE } from "../palette";
 /** 거점 구조물의 강조색. */
 const STATION_ACCENT = PALETTE.Signal;
 
+/** 밀어낼 방향을 담는 계산용 임시 벡터. */
+const scratchOutward: THREE.Vector3 = new THREE.Vector3();
+
 /**
  * 거점.
  *
@@ -97,6 +100,53 @@ export class Station {
   /** 함선까지의 거리 (m). */
   public distanceTo(shipPosition: THREE.Vector3): number {
     return this.object3D.position.distanceTo(shipPosition);
+  }
+
+  /**
+   * 함선이 구조물을 뚫고 지나가지 못하게 막는다.
+   *
+   * 거점은 도킹하는 곳이지 통과하는 곳이 아니다. 그냥 지나가지면 부피가 있는
+   * 물건으로 안 보이고, 도킹이라는 조작도 무의미해진다.
+   *
+   * 막는 방법은 밀어내기다. 안쪽으로 들어온 만큼 표면으로 되돌리고, 속도에서
+   * 파고드는 성분만 덜어낸다. 표면을 따라 미끄러지는 성분은 남겨야 벽에
+   * 달라붙지 않고 스쳐 지나갈 수 있다.
+   *
+   * @param shipPosition 함선 위치. 파고들었으면 제자리에서 밀려난다
+   * @param shipVelocity 함선 속도. 파고드는 성분이 깎인다
+   * @returns 부딪혔는지 여부
+   */
+  public resolveCollision(
+    shipPosition: THREE.Vector3,
+    shipVelocity: THREE.Vector3,
+  ): boolean {
+    scratchOutward.subVectors(shipPosition, this.position);
+    const distance: number = scratchOutward.length();
+
+    if (distance >= STATION.CollisionRadius) {
+      return false;
+    }
+
+    // 정확히 중심에 있으면 밀어낼 방향이 없다. 아무 쪽이나 잡는다.
+    if (distance < 1e-4) {
+      scratchOutward.set(0, 0, 1);
+    } else {
+      scratchOutward.divideScalar(distance);
+    }
+
+    shipPosition
+      .copy(this.position)
+      .addScaledVector(scratchOutward, STATION.CollisionRadius);
+
+    const inward: number = shipVelocity.dot(scratchOutward);
+    if (inward < 0) {
+      shipVelocity.addScaledVector(
+        scratchOutward,
+        -inward * (1 + STATION.CollisionBounce),
+      );
+    }
+
+    return true;
   }
 
   /** 링을 천천히 돌린다. 매 프레임 호출한다. */

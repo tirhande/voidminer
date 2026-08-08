@@ -53,6 +53,57 @@
       }
 
       /*
+       * 화물칸도 조작법과 같은 결의 레이어다. 비행 중에 열리므로 배경을 덜
+       * 가려서 뒤가 비쳐 보이게 둔다.
+       */
+      #hud-inventory {
+        inset: 0;
+        display: grid;
+        place-items: center;
+        background: rgba(2, 4, 9, 0.55);
+        pointer-events: auto;
+        z-index: 18;
+      }
+
+      #hud-inventory.is-hidden {
+        display: none;
+      }
+
+      #hud-inventory .sheet {
+        width: min(420px, 84vw);
+        padding: 20px 22px;
+        border: 1px solid rgba(127, 227, 255, 0.28);
+        background: rgba(4, 8, 16, 0.96);
+        display: grid;
+        gap: 14px;
+      }
+
+      #hud-inventory header {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+      }
+
+      #hud-inventory h2 {
+        font-size: 13px;
+        font-weight: 500;
+        letter-spacing: 0.3em;
+        color: var(--hud-dim);
+      }
+
+      #hud-inventory .close-hint,
+      #hud-inventory .note {
+        font-size: 11px;
+        color: var(--hud-dim);
+      }
+
+      /* 칸 수가 적으므로 한 줄에 다 놓는다. 빈 칸도 자리를 지킨다. */
+      #inventory-slots {
+        grid-template-columns: repeat(auto-fit, minmax(58px, 1fr));
+        gap: 8px;
+      }
+
+      /*
        * 조작법은 평소에 감춰둔다. HUD 는 볼 필요가 없을 때 눈에 안 띄어야
        * 한다는 것이 GDD 09 의 요구다. 조작을 외운 뒤로는 화면 구석을 차지할
        * 이유가 없다.
@@ -394,6 +445,14 @@
         font-size: 15px;
       }
 
+      /* 아이콘은 소행성 모델을 구운 그림이다. 칸을 꽉 채우되 여백을 조금 둔다. */
+      img.glyph {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        padding: 3px;
+      }
+
       .station-cell .badge {
         position: absolute;
         right: 3px;
@@ -697,6 +756,17 @@
       <div><span class="label">TRC</span> <span id="readout-tractor">OFF</span></div>
     </div>
 
+    <div id="hud-inventory" class="hud is-hidden">
+      <div class="sheet">
+        <header>
+          <h2>화물칸</h2>
+          <span class="close-hint" id="inventory-usage"></span>
+        </header>
+        <div class="cell-grid" id="inventory-slots"></div>
+        <div class="note">Tab — 닫기</div>
+      </div>
+    </div>
+
     <div id="hud-controls" class="hud is-hidden">
       <div class="sheet">
         <header>
@@ -721,6 +791,7 @@
         <span class="key">좌클릭</span> 채굴
         <span class="key">우클릭</span> 견인
         <span class="key">F</span> 도킹
+        <span class="key">Tab</span> 화물칸
       </p>
       <p class="hint accent"><span class="key">H</span> 를 누르면 조작법이 다시 나온다</p>
     </div>

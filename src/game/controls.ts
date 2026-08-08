@@ -40,6 +40,14 @@ export const KEY_BINDING = {
    * 닿지 않는 경우가 있다. 비행에 쓰지 않는 키 중에서 뜻이 통하는 것을 골랐다.
    */
   Help: "KeyH",
+  /**
+   * 화물칸 보기.
+   *
+   * GDD 09 가 Tab 을 인벤토리로 예약해두고 "비행 중 볼 일이 있는가" 를 미정으로
+   * 남겼다. 화물이 칸 단위가 되면서 볼 일이 생겼다 — 무엇이 몇 칸을 먹고 있는지
+   * 알아야 지금 캘지 돌아갈지를 정한다.
+   */
+  Inventory: "Tab",
 } as const;
 
 /** 비행 중 계속 눌리는 키. 도킹 같은 단발 조작과 겹치면 안 된다. */
@@ -141,6 +149,11 @@ export const CONTROL_HELP: ReadonlyArray<ControlGroup> = [
   {
     title: "그 밖",
     entries: [
+      {
+        keys: "Tab",
+        label: "화물칸 열고 닫기 — 비행 중에도 볼 수 있다",
+        codes: [KEY_BINDING.Inventory],
+      },
       { keys: "H", label: "이 화면 열고 닫기", codes: [KEY_BINDING.Help] },
       { keys: "Esc", label: "조종 해제", codes: [] },
     ],

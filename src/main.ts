@@ -32,6 +32,7 @@ import { TractorBeam } from "./game/tractor-beam";
 import { Warp } from "./game/warp";
 import { LIGHTING, PALETTE } from "./palette";
 import { createSpaceEnvironment } from "./rendering/environment";
+import { renderModelIcons } from "./rendering/icon-renderer";
 import { PostProcessing } from "./rendering/post-processing";
 
 /** 렌더 대상 캔버스를 가져온다. */
@@ -162,6 +163,9 @@ async function bootstrap(): Promise<void> {
 
   const input: FlightInput = new FlightInput(canvas);
   const hud: Hud = new Hud();
+  // 소행성 모델을 그림으로 구워 거점 격자에 쓴다. 우주에서 본 것과 저장고에
+  // 든 것이 같은 물건으로 보여야 한다.
+  hud.setIcons(renderModelIcons(models.asteroids));
   hud.onEngageRequested(() => {
     input.requestControl();
   });
@@ -276,6 +280,8 @@ async function bootstrap(): Promise<void> {
       debrisField.pulledDebris,
     );
 
+    // 거점은 도킹하는 곳이지 통과하는 곳이 아니다.
+    station.resolveCollision(ship.position, ship.velocity);
     station.update(deltaSeconds);
     const stationView: StationView = stationConsole.update(
       flightInput,

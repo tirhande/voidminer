@@ -25,7 +25,10 @@ const TRACTOR_BEAM = {
   CollectDistance: 6,
 };
 
-const CARGO = { Capacity: 180 };
+const CARGO = { StackSize: 100, Slots: 3 };
+
+/** 한 종류만 실었을 때의 최대 적재량. 화물칸은 칸 단위다. */
+const CARGO_CAPACITY = CARGO.Slots * CARGO.StackSize;
 const SMELTING = { OrePerIngot: 4, PrimaryIngotPerAlloy: 3, PairIngotPerAlloy: 1 };
 const UPGRADE_COST = { MaterialBase: 10, MaterialPerLevel: 8, CreditBase: 150, CreditPerLevel: 120 };
 const SELL_PRICE = { Ore: 2, Ingot: 14 };
@@ -81,7 +84,7 @@ function measureCycle(laserTier, laserUpgrade, tractorTier) {
   // 둘 중 느린 쪽이 실제 처리량이다. 이것이 2층 모델의 핵심이다.
   const effective = Math.min(mining, collecting);
 
-  const fillSeconds = CARGO.Capacity / effective;
+  const fillSeconds = CARGO_CAPACITY / effective;
   // 거점까지 갔다 오는 시간. 가속과 감속을 감안해 평균 속도를 최고의 60% 로 본다.
   const travelSeconds = (STATION_DISTANCE * 2) / (SHIP_MAX_SPEED * 0.6);
   const stationSeconds = 8;
@@ -107,7 +110,7 @@ function measureUpgrade(level, laserTier, laserUpgrade, tractorTier) {
   const totalOre = oreForMaterial + oreForCredits;
 
   const cycle = measureCycle(laserTier, laserUpgrade, tractorTier);
-  const cycles = totalOre / CARGO.Capacity;
+  const cycles = totalOre / CARGO_CAPACITY;
 
   return { level, materialNeeded, creditsNeeded, totalOre, cycles, seconds: cycles * cycle.cycleSeconds };
 }
@@ -147,9 +150,9 @@ console.log(`강화 3 도달 (주석 해금): ${formatSeconds(elapsed)}`);
 const bronzeOre =
   (SMELTING.PrimaryIngotPerAlloy + SMELTING.PairIngotPerAlloy) * 8 * SMELTING.OrePerIngot;
 const bronzeCycle = measureCycle(1, 3, 1);
-const bronzeSeconds = (bronzeOre / CARGO.Capacity) * bronzeCycle.cycleSeconds;
+const bronzeSeconds = (bronzeOre / CARGO_CAPACITY) * bronzeCycle.cycleSeconds;
 console.log(
-  `청동 8 개 (T2 제작): 광석 ${bronzeOre} · ${(bronzeOre / CARGO.Capacity).toFixed(1)} 사이클 · ${formatSeconds(bronzeSeconds)}`,
+  `청동 8 개 (T2 제작): 광석 ${bronzeOre} · ${(bronzeOre / CARGO_CAPACITY).toFixed(1)} 사이클 · ${formatSeconds(bronzeSeconds)}`,
 );
 console.log(`T2 도달 총합: ${formatSeconds(elapsed + bronzeSeconds)}`);
 
