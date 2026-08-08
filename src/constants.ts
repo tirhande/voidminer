@@ -269,7 +269,7 @@ export const STATION = {
    *
    * 구조물이 커서 가까이 두면 시작하자마자 눈앞을 가린다.
    */
-  DistanceFromOrigin: 240,
+  DistanceFromOrigin: 500,
   /**
    * 구조물 반지름 (m). 가장 긴 축의 절반이다.
    *

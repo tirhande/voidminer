@@ -140,6 +140,13 @@ export type SystemRow = {
    * 감추지는 않는다 — 갈 곳이 있다는 것과 무엇이 필요한지는 보여야 한다.
    */
   readonly isUnlocked: boolean;
+  /**
+   * 갈 수 없을 때 무엇이 필요한지. 갈 수 있으면 빈 문자열이다.
+   *
+   * 줄마다 적는다. 목록 위에 한 번만 적어두면 흐린 줄을 눌러보고 나서야
+   * 위쪽을 읽게 된다. 막힌 것을 누른 자리에 이유가 있어야 한다.
+   */
+  readonly lockReason: string;
   /** 지금 장비로 캘 것이 있는지 */
   readonly hasMinable: boolean;
   readonly action: StationAction;
@@ -604,6 +611,7 @@ function describeSystems(
       ),
       isCurrent: id === current,
       isUnlocked: unlocked,
+      lockReason: unlocked ? "" : `채굴 레이저 T${WARP_UNLOCK_TIER} 필요`,
       hasMinable: hasMinableMineral(
         definition,
         equipment.laserTier,

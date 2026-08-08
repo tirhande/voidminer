@@ -267,6 +267,17 @@ async function bootstrap(): Promise<void> {
 
     // 이전 항성계에서 캐던 파편이 따라오면 안 된다.
     debrisField.clear();
+
+    // 도착하면 그 항성계의 시작 지점에 선다.
+    //
+    // 떠난 자리를 그대로 쓰면 어디에 떨어질지 알 수 없다. 항성계마다 배치가
+    // 다르므로 소행성 한가운데일 수도 있고, 거점에서 한참 떨어진 곳일 수도
+    // 있다. 시작 지점은 주변이 비어 있고 거점이 정면에 보이는 자리다.
+    ship.position.copy(fieldOrigin);
+    ship.object3D.quaternion.identity();
+    ship.halt();
+    chaseCamera.snapToShip();
+
     stationConsole.arriveAt(target);
     persist();
   }

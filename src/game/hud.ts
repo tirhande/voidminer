@@ -452,7 +452,7 @@ export class Hud {
         cell.actions.map((button) => [button.label, button.detail, button.isAvailable]),
       ]),
       view.operations.map((button) => [button.detail, button.isAvailable]),
-      view.systems.map((row) => [row.name, row.isCurrent, row.hasMinable, row.isUnlocked]),
+      view.systems.map((row) => [row.name, row.isCurrent, row.hasMinable, row.lockReason]),
       view.systemLabel,
       view.message,
       view.quantity,
@@ -734,13 +734,17 @@ export class Hud {
 
     const label: HTMLSpanElement = document.createElement("span");
     label.className = "label";
-    label.textContent = row.isCurrent ? `${row.name} — 현재 위치` : row.name;
+    label.textContent = row.isCurrent
+      ? `${row.name} — 현재 위치`
+      : row.isUnlocked
+        ? row.name
+        : `${row.name} — 잠김`;
 
     const detail: HTMLSpanElement = document.createElement("span");
     detail.className = "detail";
     const minerals: string = row.minerals.join(" · ");
     if (!row.isUnlocked && !row.isCurrent) {
-      detail.textContent = `${minerals} · 아직 갈 수 없다`;
+      detail.textContent = `${minerals} · ${row.lockReason}`;
     } else if (row.hasMinable) {
       detail.textContent = `${minerals} · ${row.summary}`;
     } else {
