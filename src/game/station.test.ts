@@ -95,3 +95,71 @@ describe("거점 충돌", () => {
     expect(station.isWithinDockRange(away)).toBe(false);
   });
 });
+
+describe("도킹 유지", () => {
+  const origin: THREE.Vector3 = new THREE.Vector3();
+
+  /** 정거장을 그만큼 돌린다. */
+  function rotate(station: Station, seconds: number): void {
+    const step: number = 1 / 60;
+    for (let elapsed = 0; elapsed < seconds; elapsed += step) {
+      station.update(step);
+    }
+  }
+
+  it("정거장이 돌아도 도킹이 풀리지 않는다", () => {
+    // 붙들지 않으면 계류 팔이 함선을 두고 떠난다. 거리가 벌어지다 도킹 범위를
+    // 넘는 순간 저절로 풀린다.
+    const station: Station = new Station(origin);
+    const position: THREE.Vector3 = station.dockPoint.clone();
+    const rotation: THREE.Quaternion = new THREE.Quaternion();
+    const anchor = station.anchorShip(position, rotation);
+
+    for (let round = 0; round < 60; round += 1) {
+      rotate(station, 1);
+      station.holdShip(anchor, position, rotation);
+      expect(station.isWithinDockRange(position)).toBe(true);
+    }
+  });
+
+  it("붙들지 않으면 실제로 풀린다", () => {
+    // 위 시험이 무엇을 막고 있는지 확인한다. 이것이 통과하지 않으면 위 시험은
+    // 아무것도 지키지 않는 셈이다.
+    const station: Station = new Station(origin);
+    const position: THREE.Vector3 = station.dockPoint.clone();
+
+    rotate(station, 180);
+
+    expect(station.isWithinDockRange(position)).toBe(false);
+  });
+
+  it("함선이 정거장 회전을 따라간다", () => {
+    // 위치만 옮기면 미끄러지듯 평행 이동해서 물려 있는 것으로 안 보인다.
+    const station: Station = new Station(origin);
+    const position: THREE.Vector3 = station.dockPoint.clone();
+    const rotation: THREE.Quaternion = new THREE.Quaternion();
+    const anchor = station.anchorShip(position, rotation);
+    const before: THREE.Quaternion = rotation.clone();
+
+    rotate(station, 30);
+    station.holdShip(anchor, position, rotation);
+
+    expect(rotation.angleTo(before)).toBeGreaterThan(0.1);
+  });
+
+  it("물린 자리가 도킹 지점에서 벗어나지 않는다", () => {
+    // 도킹한 자리를 그대로 유지해야 한다. 조금씩 밀리면 결국 벗어난다.
+    const station: Station = new Station(origin);
+    const position: THREE.Vector3 = station.dockPoint.clone().add(
+      new THREE.Vector3(3, -2, 1),
+    );
+    const rotation: THREE.Quaternion = new THREE.Quaternion();
+    const anchor = station.anchorShip(position, rotation);
+    const gap: number = position.distanceTo(station.dockPoint);
+
+    rotate(station, 120);
+    station.holdShip(anchor, position, rotation);
+
+    expect(position.distanceTo(station.dockPoint)).toBeCloseTo(gap, 3);
+  });
+});

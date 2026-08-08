@@ -8,6 +8,18 @@ const STATION_ACCENT = PALETTE.Signal;
 
 /** 밀어낼 방향을 담는 계산용 임시 벡터. */
 const scratchOutward: THREE.Vector3 = new THREE.Vector3();
+const scratchStationQuaternion: THREE.Quaternion = new THREE.Quaternion();
+
+/**
+ * 물려 있는 동안 유지할 상대 자세.
+ *
+ * 구조물 기준 좌표라, 구조물이 돌면 세계 좌표가 따라 돈다. 도킹한 순간의
+ * 관계를 그대로 붙들어 두는 것이 목적이다.
+ */
+export type DockAnchor = {
+  readonly position: THREE.Vector3;
+  readonly quaternion: THREE.Quaternion;
+};
 
 /**
  * 거점.
@@ -36,7 +48,7 @@ export class Station {
    * 팔은 옆으로 가 있는데 도킹은 허공에서 되는 상태가 된다. 노드를 들고 있다가
    * 매 프레임 다시 읽는다.
    */
-  private readonly dockSocket: THREE.Object3D | null = null;
+  private dockSocket: THREE.Object3D | null = null;
 
   public constructor(origin: THREE.Vector3, model: THREE.Object3D | null = null) {
     this.object3D = new THREE.Group();
@@ -58,9 +70,15 @@ export class Station {
     }
 
     // 모델이 없으면 절차 생성으로 만든다. 없는 것이 정상 경로여야 한다.
-    this.dockPoint = this.object3D.position
-      .clone()
-      .add(new THREE.Vector3(STATION.Radius * 1.33, 0, 0));
+    //
+    // 도킹 지점을 좌표로 들고 있지 않고 노드로 둔다. 모델 쪽과 같은 길을 타야
+    // 구조물이 돌 때 도킹 지점도 같이 도는 동작이 양쪽에서 같아진다.
+    const fallbackSocket: THREE.Object3D = new THREE.Object3D();
+    fallbackSocket.name = STATION_MODEL.DockSocket;
+    fallbackSocket.position.set(STATION.Radius * 1.33, 0, 0);
+    this.object3D.add(fallbackSocket);
+    this.dockSocket = fallbackSocket;
+    this.dockPoint = this.readDockPoint();
 
     const hullMaterial: THREE.MeshStandardMaterial = new THREE.MeshStandardMaterial({
       color: PALETTE.Hull,
@@ -206,6 +224,48 @@ export class Station {
   }
 
   /**
+   * 지금 함선 자세를 구조물 기준으로 적어둔다. 도킹하는 순간에 한 번 부른다.
+   *
+   * 세계 좌표로 들고 있으면 구조물이 돌 때 관계가 끊긴다. 구조물 기준으로
+   * 바꿔두면 도는 것을 따로 계산하지 않아도 된다.
+   */
+  public anchorShip(
+    shipPosition: THREE.Vector3,
+    shipQuaternion: THREE.Quaternion,
+  ): DockAnchor {
+    this.object3D.updateMatrixWorld(true);
+    this.object3D.getWorldQuaternion(scratchStationQuaternion);
+
+    return {
+      position: this.object3D.worldToLocal(shipPosition.clone()),
+      quaternion: scratchStationQuaternion.invert().multiply(shipQuaternion),
+    };
+  }
+
+  /**
+   * 물려 있는 함선을 구조물에 붙여둔다. 도킹 중 매 프레임 부른다.
+   *
+   * 도킹은 물리적으로 물린 상태다. 구조물이 도는데 함선만 제자리에 있으면
+   * 계류 팔이 함선을 두고 떠나고, 거리가 벌어지다 도킹이 저절로 풀린다.
+   *
+   * 회전까지 따라간다. 위치만 옮기면 함선이 미끄러지듯 평행 이동해서 물려
+   * 있는 것으로 안 보인다. 도는 속도가 느려 어지럽지 않고, 도킹 중에는 어차피
+   * 조종하지 않는다.
+   */
+  public holdShip(
+    anchor: DockAnchor,
+    shipPosition: THREE.Vector3,
+    shipQuaternion: THREE.Quaternion,
+  ): void {
+    this.object3D.updateMatrixWorld(true);
+    this.object3D.getWorldQuaternion(scratchStationQuaternion);
+
+    shipPosition.copy(anchor.position);
+    this.object3D.localToWorld(shipPosition);
+    shipQuaternion.copy(scratchStationQuaternion).multiply(anchor.quaternion);
+  }
+
+  /**
    * 함선이 구조물을 뚫고 지나가지 못하게 막는다.
    *
    * 거점은 도킹하는 곳이지 통과하는 곳이 아니다. 그냥 지나가지면 부피가 있는
@@ -255,16 +315,19 @@ export class Station {
   /**
    * 구조물을 천천히 돌린다. 매 프레임 호출한다.
    *
+   * 모델이 있든 없든 같은 속도로 돈다. 한쪽만 돌면 모델이 없는 환경에서
+   * 도킹이 다르게 움직여서, 시험으로 잡히는 것과 실제로 보이는 것이 갈린다.
+   *
    * 도는 동안 도킹 지점도 함께 움직이므로 자리를 다시 읽는다. 안 읽으면 팔은
    * 옆으로 가 있는데 도킹은 처음 자리에서 되는 상태가 된다.
    */
   public update(deltaSeconds: number): void {
-    if (this.ring !== null) {
-      this.ring.rotation.z += deltaSeconds * 0.25;
-      return;
-    }
-
     this.object3D.rotation.y += STATION.RotationSpeed * deltaSeconds;
     this.dockPoint.copy(this.readDockPoint());
+
+    // 절차 생성 쪽에는 따로 도는 거주 링이 있다.
+    if (this.ring !== null) {
+      this.ring.rotation.z += deltaSeconds * 0.25;
+    }
   }
 }

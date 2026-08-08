@@ -19,7 +19,7 @@ import { Nebula } from "./game/nebula";
 import { ObjectiveTracker } from "./game/objectives";
 import type { ObjectiveSnapshot, ObjectiveView } from "./game/objectives";
 import { Starfield } from "./game/starfield";
-import { Station } from "./game/station";
+import { Station, type DockAnchor } from "./game/station";
 import { StationConsole } from "./game/station-console";
 import type { StationView } from "./game/station-console";
 import {
@@ -275,6 +275,9 @@ async function bootstrap(): Promise<void> {
    * 있고, 조종과 클릭이 부딪히지 않는다.
    */
   let wasDocked: boolean = false;
+  /** 물려 있는 동안 유지할 상대 자세. 도킹 중이 아니면 null 이다 */
+  let dockAnchor: DockAnchor | null = null;
+
   function syncDockingMode(isDocked: boolean): void {
     if (isDocked === wasDocked) {
       return;
@@ -286,7 +289,10 @@ async function bootstrap(): Promise<void> {
 
     if (isDocked) {
       ship.halt();
+      // 도킹한 순간의 관계를 적어둔다. 이후로는 구조물이 도는 대로 따라간다.
+      dockAnchor = station.anchorShip(ship.position, ship.quaternion);
     } else {
+      dockAnchor = null;
       input.requestControl();
     }
   }
@@ -368,6 +374,11 @@ async function bootstrap(): Promise<void> {
     // 거점은 도킹하는 곳이지 통과하는 곳이 아니다.
     station.resolveCollision(ship.position, ship.velocity);
     station.update(deltaSeconds);
+    // 물려 있으면 구조물을 따라 돈다. 안 붙들면 계류 팔이 함선을 두고 떠나
+    // 거리가 벌어지다 도킹이 저절로 풀린다.
+    if (dockAnchor !== null) {
+      station.holdShip(dockAnchor, ship.position, ship.quaternion);
+    }
     const stationView: StationView = stationConsole.update(
       flightInput,
       ship.position,
