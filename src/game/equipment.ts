@@ -4,6 +4,19 @@ import type { MineralDefinition } from "./minerals";
 /** 티어당 업그레이드 상한. */
 export const MAX_UPGRADE_LEVEL = 5;
 
+/** 값을 범위 안으로 넣는다. 숫자가 아니면 하한을 준다. */
+function clamp(value: number, low: number, high: number): number {
+  if (!Number.isFinite(value)) {
+    return low;
+  }
+  return Math.min(Math.max(Math.floor(value), low), high);
+}
+
+/** 티어는 1 이상이어야 한다. 0 이면 아무것도 캘 수 없는 장비가 된다. */
+function sanitizeTier(tier: number): number {
+  return clamp(tier, 1, 8);
+}
+
 /** 채굴 가능 여부와, 불가한 경우의 사유. */
 export type MiningEligibility = {
   readonly isAllowed: boolean;
@@ -56,6 +69,18 @@ export class ShipEquipment {
   }
 
   /** 견인빔 티어를 올린다. */
+  /**
+   * 저장된 장비 상태를 되돌린다.
+   *
+   * 이어하기 전용이다. 값이 이상하면 시작 상태로 둔다 — 저장이 틀어져서 캘 수
+   * 없는 장비를 들고 시작하는 것이 가장 나쁘다.
+   */
+  public restore(laserTier: number, laserUpgrade: number, tractorTier: number): void {
+    this.laserTierValue = sanitizeTier(laserTier);
+    this.laserUpgradeValue = clamp(laserUpgrade, 0, MAX_UPGRADE_LEVEL);
+    this.tractorTierValue = sanitizeTier(tractorTier);
+  }
+
   public upgradeTractor(): void {
     this.tractorTierValue += 1;
   }

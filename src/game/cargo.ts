@@ -158,6 +158,16 @@ export class Cargo {
     return roomInEmpty + partial;
   }
 
+  /**
+   * 그 자원을 본 적 있는 것으로 기록한다.
+   *
+   * 이어하기 전용이다. 저장에서 되돌릴 때 화물이 비어 있어도 이미 캐본 광물은
+   * 캐본 것으로 남아야 목표가 되돌아가지 않는다.
+   */
+  public markSeen(resource: ResourceId): void {
+    this.everSeen.add(resource);
+  }
+
   /** 화물칸을 비운다. 거점에 하역할 때 쓴다. */
   public clear(): void {
     this.amounts.clear();

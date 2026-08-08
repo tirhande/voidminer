@@ -22,6 +22,14 @@ type PendingRespawn = {
   remainingSeconds: number;
 };
 
+/** 그 자리가 비워둬야 할 곳과 겹치는지. */
+function isBlocked(
+  position: THREE.Vector3,
+  keepClear: ReadonlyArray<{ position: THREE.Vector3; radius: number }>,
+): boolean {
+  return keepClear.some((area) => position.distanceTo(area.position) < area.radius);
+}
+
 /** 가장 큰 소행성의 반지름. 자리를 먼저 정하므로 여유를 최대치로 잡는다. */
 const LARGEST_RADIUS: number = Math.max(
   ...MINERAL_ORDER.map((mineral) => sizeForMineral(mineral).radius),
@@ -69,10 +77,17 @@ export class AsteroidField {
   /** 이 필드가 속한 항성계 */
   public readonly system: StarSystemDefinition;
 
+  /**
+   * @param origin 필드 중심
+   * @param models 광물별 외부 모델
+   * @param system 이 필드가 속한 항성계
+   * @param keepClear 소행성을 두지 않을 자리와 반경. 거점이 여기 들어간다
+   */
   public constructor(
     origin: THREE.Vector3,
     models: ReadonlyMap<MineralId, THREE.Object3D> = new Map(),
     system: StarSystemDefinition = STAR_SYSTEM_DEFINITIONS[STARTING_SYSTEM],
+    keepClear: ReadonlyArray<{ position: THREE.Vector3; radius: number }> = [],
   ) {
     this.object3D = new THREE.Group();
     this.object3D.name = `AsteroidField_${system.id}`;
@@ -88,7 +103,14 @@ export class AsteroidField {
     const minRatio: number = (ASTEROID_FIELD.SpawnClearance + LARGEST_RADIUS) / half;
 
     for (let index = 0; index < ASTEROID_FIELD.Count; index += 1) {
-      this.placeAt(position, randomInRange(this.random, minRatio, 1));
+      // 거점 안에 소행성이 생기면 캐러 들어갈 수도 없고 보기도 이상하다.
+      // 몇 번 다시 뽑아도 안 되면 그냥 둔다. 한 개 겹치는 것보다 멈추는 것이 나쁘다.
+      let attempts: number = 0;
+      do {
+        this.placeAt(position, randomInRange(this.random, minRatio, 1));
+        attempts += 1;
+      } while (attempts < 12 && isBlocked(position, keepClear));
+
       this.spawn(pickMineral(this.random, system.minerals), position);
     }
 

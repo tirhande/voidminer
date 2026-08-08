@@ -70,8 +70,8 @@
       }
 
       #hud-inventory .sheet {
-        width: min(420px, 84vw);
-        padding: 20px 22px;
+        width: min(240px, 70vw);
+        padding: 14px 16px;
         border: 1px solid rgba(127, 227, 255, 0.28);
         background: rgba(4, 8, 16, 0.96);
         display: grid;
@@ -85,7 +85,7 @@
       }
 
       #hud-inventory h2 {
-        font-size: 13px;
+        font-size: 11px;
         font-weight: 500;
         letter-spacing: 0.3em;
         color: var(--hud-dim);
@@ -97,10 +97,13 @@
         color: var(--hud-dim);
       }
 
-      /* 칸 수가 적으므로 한 줄에 다 놓는다. 빈 칸도 자리를 지킨다. */
+      /*
+       * 거점 격자와 같은 칸 크기를 쓴다. 같은 물건을 담는 곳이므로 같아 보여야
+       * 한다. 칸 수가 적다고 칸을 키우면 다른 물건처럼 보인다.
+       */
       #inventory-slots {
-        grid-template-columns: repeat(auto-fit, minmax(58px, 1fr));
-        gap: 8px;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 6px;
       }
 
       /*
@@ -496,10 +499,16 @@
        * 고른 칸의 상세. 창을 따로 띄우지 않는다 — 창이 하나 더 생기면 그것이
        * 곧 패널이고, 패널을 오가게 하지 않는 것이 이 화면의 전제다.
        */
+      /*
+       * 높이를 고정한다. 설명 길이에 따라 늘었다 줄었다 하면 아래 항성계 목록이
+       * 통째로 밀려서 누르려던 것이 도망간다. 넘치면 줄 안에서 스크롤한다.
+       */
       #hud-station .detail-bar {
         display: grid;
         gap: 6px;
-        min-height: 62px;
+        height: 86px;
+        align-content: start;
+        overflow-y: auto;
         padding: 10px 12px;
         border: 1px solid rgba(127, 227, 255, 0.2);
         background: rgba(127, 227, 255, 0.04);
@@ -568,6 +577,18 @@
       .station-button:focus-visible {
         outline: 2px solid var(--hud-cyan);
         outline-offset: 2px;
+      }
+
+      /* 되돌릴 수 없는 것이라 다른 버튼과 같아 보이면 안 된다. */
+      .station-button.danger {
+        border-color: rgba(255, 59, 59, 0.3);
+        background: rgba(255, 59, 59, 0.05);
+        color: rgba(255, 122, 122, 0.85);
+      }
+
+      .station-button.danger:hover:not(:disabled) {
+        background: rgba(255, 59, 59, 0.14);
+        border-color: rgba(255, 59, 59, 0.6);
       }
 
       .station-button:disabled {
@@ -672,6 +693,55 @@
         color: var(--hud-text);
       }
 
+      #overlay .save-note {
+        font-size: 11px;
+        color: var(--hud-dim);
+      }
+
+      /*
+       * 초기화는 시작 화면에도 둔다. 거점 안쪽에만 있으면 이어하기 싫은 사람이
+       * 일단 이어서 들어가야 하는 모순이 생긴다.
+       */
+      #overlay .overlay-reset {
+        margin-top: 4px;
+        padding: 6px 14px;
+        border: 1px solid rgba(255, 59, 59, 0.34);
+        background: rgba(255, 59, 59, 0.06);
+        color: rgba(255, 122, 122, 0.85);
+        font: inherit;
+        font-size: 11px;
+        cursor: pointer;
+        pointer-events: auto;
+      }
+
+      #overlay .overlay-reset:hover {
+        background: rgba(255, 59, 59, 0.16);
+      }
+
+      #overlay .overlay-reset.is-hidden {
+        display: none;
+      }
+
+      /*
+       * 한 번 조종해본 뒤에 다시 뜬 화면. 조작 안내를 접는다.
+       * Esc 로 빠져나올 때마다 전부 다시 뜨면 알려주는 것이 아니라 가로막는
+       * 것이 된다. 조작법이 필요하면 H 로 언제든 연다.
+       */
+      #overlay.returning .hint,
+      #overlay.returning .tagline {
+        display: none;
+      }
+
+      #overlay.returning .resume {
+        display: block;
+      }
+
+      #overlay .resume {
+        display: none;
+        font-size: 12px;
+        color: var(--hud-dim);
+      }
+
       #overlay p {
         font-size: 13px;
         color: var(--hud-dim);
@@ -743,6 +813,10 @@
 
       <div class="divider"></div>
       <div class="message" id="station-message"></div>
+      <button class="station-button wide danger" id="station-reset">
+        <span class="label">처음부터 다시</span>
+        <span class="detail">저장된 진행이 지워진다</span>
+      </button>
       <button class="station-button wide" id="station-undock">
         <span class="label">도킹 해제</span>
         <span class="detail">F 로도 나갈 수 있다</span>
@@ -754,6 +828,7 @@
       <div><span class="label">THR</span> <span id="readout-throttle">IDLE</span></div>
       <div><span class="label">AST</span> <span id="readout-assist">OFF</span></div>
       <div><span class="label">TRC</span> <span id="readout-tractor">OFF</span></div>
+      <div><span class="label">FPS</span> <span id="readout-fps">—</span></div>
     </div>
 
     <div id="hud-inventory" class="hud is-hidden">
@@ -779,8 +854,9 @@
 
     <div id="overlay">
       <h1>VOIDMINER</h1>
-      <p>캐서 만들고, 더 좋은 것을 캔다</p>
+      <p class="tagline">캐서 만들고, 더 좋은 것을 캔다</p>
       <p>화면을 클릭하면 조종이 시작된다</p>
+      <p class="resume">H — 조작법</p>
       <p class="hint">
         <span class="key">W A S D</span> 이동
         <span class="key">Space / C</span> 상승 · 하강
@@ -794,6 +870,8 @@
         <span class="key">Tab</span> 화물칸
       </p>
       <p class="hint accent"><span class="key">H</span> 를 누르면 조작법이 다시 나온다</p>
+      <p class="save-note" id="overlay-save-note"></p>
+      <button class="overlay-reset is-hidden" id="overlay-reset">처음부터 다시 시작</button>
     </div>
 
     <script type="module" src="/src/main.ts"></script>

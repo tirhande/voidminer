@@ -208,3 +208,26 @@ describe("항성계", () => {
     expect(eachAsteroid(first)[0].position.x).not.toBe(eachAsteroid(second)[0].position.x);
   });
 });
+
+describe("비워둘 자리", () => {
+  it("거점 안에는 소행성이 생기지 않는다", () => {
+    // 구조물 안에 생기면 캐러 들어갈 수도 없고 보기도 이상하다.
+    const origin: THREE.Vector3 = new THREE.Vector3();
+    const keepOut: THREE.Vector3 = new THREE.Vector3(0, 0, -240);
+    const radius: number = 90;
+
+    const field: AsteroidField = new AsteroidField(
+      origin,
+      new Map(),
+      STAR_SYSTEM_DEFINITIONS[STAR_SYSTEM_ORDER[0]],
+      [{ position: keepOut, radius }],
+    );
+
+    for (const mesh of field.raycastTargets) {
+      const asteroid: Asteroid | null = field.findByMesh(mesh);
+      if (asteroid !== null) {
+        expect(asteroid.position.distanceTo(keepOut)).toBeGreaterThanOrEqual(radius);
+      }
+    }
+  });
+});

@@ -16,6 +16,15 @@ import { POST_PROCESSING } from "../palette";
  * 순서는 렌더 → 블룸 → 출력이다. OutputPass 가 톤 매핑과 색 공간 변환을
  * 맡으므로, 이것이 빠지면 화면이 씻긴 것처럼 밝아진다.
  */
+/**
+ * 블룸을 그리는 해상도 비율.
+ *
+ * 블룸은 번지게 하는 효과라 절반 해상도로 그려도 눈에 띄지 않는다. 대신 픽셀
+ * 수가 넉 배로 줄어든다. 이 통과가 화면 크기에 그대로 비례해 무거워지는 쪽이라
+ * 여기서 아끼는 것이 가장 크다.
+ */
+const BLOOM_SCALE = 0.5;
+
 export class PostProcessing {
   private readonly composer: EffectComposer;
   private readonly bloomPass: UnrealBloomPass;
@@ -32,7 +41,10 @@ export class PostProcessing {
     this.composer.addPass(new RenderPass(scene, camera));
 
     this.bloomPass = new UnrealBloomPass(
-      new THREE.Vector2(window.innerWidth, window.innerHeight),
+      new THREE.Vector2(
+        window.innerWidth * BLOOM_SCALE,
+        window.innerHeight * BLOOM_SCALE,
+      ),
       POST_PROCESSING.BloomStrength,
       POST_PROCESSING.BloomRadius,
       POST_PROCESSING.BloomThreshold,
@@ -46,7 +58,7 @@ export class PostProcessing {
   /** 화면 크기가 바뀌었을 때 호출한다. */
   public setSize(width: number, height: number): void {
     this.composer.setSize(width, height);
-    this.bloomPass.resolution.set(width, height);
+    this.bloomPass.resolution.set(width * BLOOM_SCALE, height * BLOOM_SCALE);
   }
 
   /** 한 프레임을 그린다. renderer.render 대신 호출한다. */

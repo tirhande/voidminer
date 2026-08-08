@@ -27,6 +27,14 @@ import {
   STARTING_SYSTEM,
   type StarSystemId,
 } from "./game/star-systems";
+import {
+  AUTOSAVE_INTERVAL_MS,
+  SAVE_KEY,
+  captureSave,
+  parseSave,
+  restoreSave,
+  type SaveData,
+} from "./game/save";
 import { StationStock } from "./game/station-stock";
 import { TractorBeam } from "./game/tractor-beam";
 import { Warp } from "./game/warp";
@@ -88,7 +96,10 @@ async function bootstrap(): Promise<void> {
     antialias: true,
     powerPreference: "high-performance",
   });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  // 화면 배율을 그대로 따르면 레티나에서 픽셀이 넉 배가 된다. 후처리가 화면
+  // 크기에 비례해 무거워지므로 여기가 가장 크게 먹는다. 1.5 면 계단이 눈에
+  // 띄지 않으면서 픽셀이 절반 가까이 준다.
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
   renderer.setSize(window.innerWidth, window.innerHeight, false);
   renderer.setClearColor(PALETTE.Void, 1);
 
@@ -116,13 +127,21 @@ async function bootstrap(): Promise<void> {
   const dustField: DustField = new DustField(ship.position);
   scene.add(dustField.object3D);
 
+  const station: Station = new Station(ship.position, models.station);
+  scene.add(station.object3D);
+
   // 필드 중심은 함선 시작 지점에 고정한다. 항성계를 갈아도 거점과 필드의
   // 위치 관계가 유지돼야 도착하자마자 헤매지 않는다.
   const fieldOrigin: THREE.Vector3 = ship.position.clone();
+  // 거점 안에 소행성이 생기면 안 된다. 구조물보다 넉넉하게 비운다.
+  const keepClear = [
+    { position: station.position, radius: station.collisionRadius * 1.6 },
+  ];
   let asteroidField: AsteroidField = new AsteroidField(
     fieldOrigin,
     models.asteroids,
     STAR_SYSTEM_DEFINITIONS[STARTING_SYSTEM],
+    keepClear,
   );
   scene.add(asteroidField.object3D);
 
@@ -141,14 +160,56 @@ async function bootstrap(): Promise<void> {
   tractorBeam.setEmitter(ship.tractorHardpoint);
   scene.add(tractorBeam.object3D);
 
-  const station: Station = new Station(ship.position);
-  scene.add(station.object3D);
-
   const equipment: ShipEquipment = new ShipEquipment();
   const cargo: Cargo = new Cargo();
   const stationStock: StationStock = new StationStock();
   const stationConsole: StationConsole = new StationConsole();
   const objectives: ObjectiveTracker = new ObjectiveTracker();
+
+  /** 저장소가 막혀 있을 수 있다. 못 읽으면 새로 시작한다. */
+  function readSave(): string | null {
+    try {
+      return localStorage.getItem(SAVE_KEY);
+    } catch {
+      return null;
+    }
+  }
+
+  // 이어서 한다. 새로고침이 곧 초기화면 확인할 때마다 처음부터 캐야 한다.
+  const saved: SaveData | null = parseSave(readSave());
+  if (saved !== null) {
+    const system: StarSystemId = restoreSave(saved, cargo, stationStock, equipment);
+    if (system !== STARTING_SYSTEM) {
+      switchSystem(system);
+    } else {
+      stationConsole.arriveAt(system);
+    }
+  }
+
+  /**
+   * 지금 상태를 저장한다.
+   *
+   * 매 프레임 쓰지 않는다. 저장소 쓰기는 즉시 끝나는 일이 아니라서 프레임을
+   * 갉아먹는다. 되돌릴 수 없는 것이 바뀌는 순간에만 부른다 — 거점에서 무언가
+   * 누를 때, 항성계를 옮길 때, 창을 닫을 때.
+   */
+  let lastSaved: string = "";
+  function persist(): void {
+    const snapshot: string = JSON.stringify(
+      captureSave(cargo, stationStock, equipment, stationConsole.currentSystem),
+    );
+    // 바뀐 것이 없으면 쓰지 않는다. 주기 저장이 가만히 있는 동안에도 계속
+    // 저장소를 두드리면 아무 이득 없이 프레임만 갉는다.
+    if (snapshot === lastSaved) {
+      return;
+    }
+    try {
+      localStorage.setItem(SAVE_KEY, snapshot);
+      lastSaved = snapshot;
+    } catch {
+      // 저장소가 막혀 있어도 게임은 굴러가야 한다. 사생활 보호 모드 등.
+    }
+  }
 
   const chaseCamera: ChaseCamera = new ChaseCamera(
     ship,
@@ -169,8 +230,18 @@ async function bootstrap(): Promise<void> {
   hud.onEngageRequested(() => {
     input.requestControl();
   });
+  hud.setSaveState(saved !== null);
+  hud.onResetRequested(() => {
+    try {
+      localStorage.removeItem(SAVE_KEY);
+    } catch {
+      // 저장소가 막혀 있으면 지울 것도 없다.
+    }
+    window.location.reload();
+  });
   hud.onStationAction((action) => {
     stationConsole.execute(action, cargo, stationStock, equipment);
+    persist();
   });
 
   /**
@@ -187,12 +258,14 @@ async function bootstrap(): Promise<void> {
       fieldOrigin,
       models.asteroids,
       STAR_SYSTEM_DEFINITIONS[target],
+      keepClear,
     );
     scene.add(asteroidField.object3D);
 
     // 이전 항성계에서 캐던 파편이 따라오면 안 된다.
     debrisField.clear();
     stationConsole.arriveAt(target);
+    persist();
   }
 
   /**
@@ -217,6 +290,18 @@ async function bootstrap(): Promise<void> {
       input.requestControl();
     }
   }
+
+  // 캐다가 창을 닫아도 잃지 않는다. 거점에 들르기 전까지 캔 것이 통째로
+  // 날아가면 이어하기가 있으나 마나다.
+  window.addEventListener("beforeunload", persist);
+  // 캐는 동안에는 아무 시점도 걸리지 않는다. 브라우저가 죽으면 그때까지 캔
+  // 것을 통째로 잃으므로 주기적으로도 쓴다.
+  window.setInterval(persist, AUTOSAVE_INTERVAL_MS);
+  window.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") {
+      persist();
+    }
+  });
 
   window.addEventListener("resize", () => {
     renderer.setSize(window.innerWidth, window.innerHeight, false);
@@ -292,6 +377,7 @@ async function bootstrap(): Promise<void> {
       equipment,
     );
 
+    hud.updateFps(deltaSeconds);
     hud.updateFlight(
       ship.speed,
       flightInput,

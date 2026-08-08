@@ -155,6 +155,31 @@ export class StationStock {
    *
    * @returns 옮긴 총량
    */
+  /**
+   * 저장된 값을 그대로 되돌린다.
+   *
+   * 이어하기 전용이다. 일반 경로로는 캐고 제련해야만 늘어나므로, 값을 직접
+   * 넣는 문은 여기 하나만 둔다.
+   */
+  public restoreOre(mineral: MineralId, amount: number): void {
+    this.ore.set(mineral, amount);
+  }
+
+  /** 저장된 주괴를 되돌린다. */
+  public restoreIngots(mineral: MineralId, amount: number): void {
+    this.ingots.set(mineral, amount);
+  }
+
+  /** 저장된 합금을 되돌린다. */
+  public restoreAlloys(alloy: AlloyId, amount: number): void {
+    this.alloys.set(alloy, amount);
+  }
+
+  /** 저장된 화폐를 되돌린다. */
+  public restoreCredits(amount: number): void {
+    this.creditCount = amount;
+  }
+
   public unload(cargo: Cargo): number {
     let moved: number = 0;
 

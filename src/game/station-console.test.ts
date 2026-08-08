@@ -31,8 +31,9 @@ function buildSetup(): {
     cargo: new Cargo(),
     stock: new StationStock(),
     equipment: new ShipEquipment(),
-    docked: station.position.clone(),
-    faraway: station.position.clone().add(new THREE.Vector3(0, 0, STATION.DockRange * 4)),
+    // 도킹 판정은 구조물 중심이 아니라 계류 팔 끝에서 잰다.
+    docked: station.dockPoint.clone(),
+    faraway: station.dockPoint.clone().add(new THREE.Vector3(0, 0, STATION.DockRange * 4)),
   };
 }
 

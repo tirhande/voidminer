@@ -252,10 +252,10 @@ export type AsteroidSizeDefinition = {
 export const ASTEROID_SIZE_DEFINITIONS: Readonly<
   Record<AsteroidSize, AsteroidSizeDefinition>
 > = {
-  [ASTEROID_SIZE.Small]: { size: ASTEROID_SIZE.Small, radius: 6, mineralAmount: 45 },
-  [ASTEROID_SIZE.Medium]: { size: ASTEROID_SIZE.Medium, radius: 11, mineralAmount: 95 },
-  [ASTEROID_SIZE.Large]: { size: ASTEROID_SIZE.Large, radius: 17, mineralAmount: 170 },
-  [ASTEROID_SIZE.Huge]: { size: ASTEROID_SIZE.Huge, radius: 24, mineralAmount: 260 },
+  [ASTEROID_SIZE.Small]: { size: ASTEROID_SIZE.Small, radius: 11, mineralAmount: 45 },
+  [ASTEROID_SIZE.Medium]: { size: ASTEROID_SIZE.Medium, radius: 19, mineralAmount: 95 },
+  [ASTEROID_SIZE.Large]: { size: ASTEROID_SIZE.Large, radius: 30, mineralAmount: 170 },
+  [ASTEROID_SIZE.Huge]: { size: ASTEROID_SIZE.Huge, radius: 42, mineralAmount: 260 },
 };
 
 /** 광물이 묻혀 있는 소행성의 크기 등급. 광물 쌍마다 하나씩 대응한다. */

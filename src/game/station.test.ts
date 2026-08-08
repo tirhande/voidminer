@@ -1,7 +1,6 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 
-import { STATION } from "../constants";
 import { Station } from "./station";
 
 describe("거점 충돌", () => {
@@ -11,7 +10,7 @@ describe("거점 충돌", () => {
     const station: Station = new Station(origin);
     const position: THREE.Vector3 = station.position
       .clone()
-      .add(new THREE.Vector3(0, 0, STATION.CollisionRadius * 3));
+      .add(new THREE.Vector3(0, 0, station.collisionRadius * 3));
     const before: THREE.Vector3 = position.clone();
 
     expect(station.resolveCollision(position, new THREE.Vector3())).toBe(false);
@@ -25,7 +24,7 @@ describe("거점 충돌", () => {
 
     expect(station.resolveCollision(position, new THREE.Vector3())).toBe(true);
     expect(position.distanceTo(station.position)).toBeCloseTo(
-      STATION.CollisionRadius,
+      station.collisionRadius,
       4,
     );
   });
@@ -35,7 +34,7 @@ describe("거점 충돌", () => {
     const station: Station = new Station(origin);
     const position: THREE.Vector3 = station.position
       .clone()
-      .add(new THREE.Vector3(0, 0, STATION.CollisionRadius * 2));
+      .add(new THREE.Vector3(0, 0, station.collisionRadius * 2));
     const velocity: THREE.Vector3 = new THREE.Vector3(0, 0, -160);
 
     for (let step = 0; step < 60; step += 1) {
@@ -43,7 +42,7 @@ describe("거점 충돌", () => {
       station.resolveCollision(position, velocity);
 
       expect(position.distanceTo(station.position)).toBeGreaterThanOrEqual(
-        STATION.CollisionRadius - 1e-3,
+        station.collisionRadius - 1e-3,
       );
     }
   });
@@ -53,7 +52,7 @@ describe("거점 충돌", () => {
     const station: Station = new Station(origin);
     const position: THREE.Vector3 = station.position
       .clone()
-      .add(new THREE.Vector3(0, 0, STATION.CollisionRadius - 2));
+      .add(new THREE.Vector3(0, 0, station.collisionRadius - 2));
     const velocity: THREE.Vector3 = new THREE.Vector3(40, 0, -10);
 
     station.resolveCollision(position, velocity);
@@ -71,13 +70,28 @@ describe("거점 충돌", () => {
 
     expect(Number.isFinite(position.x)).toBe(true);
     expect(position.distanceTo(station.position)).toBeCloseTo(
-      STATION.CollisionRadius,
+      station.collisionRadius,
       4,
     );
   });
 
-  it("도킹 범위 안에서 막힌다", () => {
-    // 막는 거리가 도킹 거리보다 멀면 도킹을 할 수 없게 된다.
-    expect(STATION.CollisionRadius).toBeLessThan(STATION.DockRange);
+  it("도킹 지점이 막는 거리 바깥에 있다", () => {
+    // 도킹 지점이 막히는 안쪽에 있으면 영영 닿지 못한다.
+    const station: Station = new Station(origin);
+
+    expect(station.dockPoint.distanceTo(station.position)).toBeGreaterThan(
+      station.collisionRadius,
+    );
+  });
+
+  it("반대편에서는 도킹되지 않는다", () => {
+    // 도킹 지점이 계류 팔 끝이라 방향이 생긴다. 돌아 들어와야 한다.
+    const station: Station = new Station(origin);
+    const away: THREE.Vector3 = station.position
+      .clone()
+      .sub(station.dockPoint.clone().sub(station.position).setLength(station.collisionRadius));
+
+    expect(station.isWithinDockRange(station.dockPoint)).toBe(true);
+    expect(station.isWithinDockRange(away)).toBe(false);
   });
 });

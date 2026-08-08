@@ -20,6 +20,9 @@ type HudElements = {
   readonly assist: HTMLElement;
   readonly tractor: HTMLElement;
   readonly overlay: HTMLElement;
+  readonly overlaySaveNote: HTMLElement;
+  readonly overlayReset: HTMLElement;
+  readonly fps: HTMLElement;
   readonly controls: HTMLElement;
   readonly inventory: HTMLElement;
   readonly inventorySlots: HTMLElement;
@@ -51,6 +54,7 @@ type HudElements = {
   readonly stationSystemLabel: HTMLElement;
   readonly stationMessage: HTMLElement;
   readonly stationUndock: HTMLElement;
+  readonly stationReset: HTMLElement;
 };
 
 /**
@@ -90,6 +94,8 @@ export class Hud {
    * 콘솔까지 올리지 않는다.
    */
   private selectedCellKey: string | null = null;
+  private smoothedFps: number = 60;
+  private lastShownFps: number = 0;
   /**
    * 광물별 아이콘. 소행성 모델을 구워 만든 그림이다.
    *
@@ -105,6 +111,9 @@ export class Hud {
       assist: requireElement("readout-assist"),
       tractor: requireElement("readout-tractor"),
       overlay: requireElement("overlay"),
+      overlaySaveNote: requireElement("overlay-save-note"),
+      overlayReset: requireElement("overlay-reset"),
+      fps: requireElement("readout-fps"),
       controls: requireElement("hud-controls"),
       inventory: requireElement("hud-inventory"),
       inventorySlots: requireElement("inventory-slots"),
@@ -136,6 +145,7 @@ export class Hud {
       stationSystemLabel: requireElement("station-system-label"),
       stationMessage: requireElement("station-message"),
       stationUndock: requireElement("station-undock"),
+      stationReset: requireElement("station-reset"),
     };
 
     this.elements.cargoCapacity.textContent = "0";
@@ -154,6 +164,42 @@ export class Hud {
     this.lastStationSignature = "";
   }
 
+  /**
+   * 처음부터 다시 시작하기를 누르면 콜백을 호출한다.
+   *
+   * 두 곳에 둔다. 거점 안쪽에만 있으면 이어하기 싫은 사람이 일단 이어서
+   * 들어가야 하는 모순이 생긴다.
+   *
+   * 한 번 더 묻는다. 되돌릴 수 없는 것을 한 번 눌러 지우게 두면 안 된다.
+   */
+  public onResetRequested(callback: () => void): void {
+    const ask = (event: MouseEvent): void => {
+      // 시작 화면의 버튼이다. 눌린 것이 뒤로 새어 조종이 시작되면 안 된다.
+      event.stopPropagation();
+      if (window.confirm("저장된 진행이 지워진다. 처음부터 다시 시작할까?")) {
+        callback();
+      }
+    };
+
+    this.elements.stationReset.addEventListener("click", ask);
+    this.elements.overlayReset.addEventListener("click", ask);
+  }
+
+  /**
+   * 시작 화면에 저장 상태를 적는다.
+   *
+   * 이어할 것이 있는데 아무 말이 없으면 처음부터 하는 줄 알고 시작한다.
+   * 반대로 없는데 있다고 하면 진행이 사라진 것으로 오해한다.
+   *
+   * @param hasSave 이어할 저장이 있는지
+   */
+  public setSaveState(hasSave: boolean): void {
+    this.elements.overlaySaveNote.textContent = hasSave
+      ? "저장된 진행에서 이어서 시작한다"
+      : "진행은 자동으로 저장된다. 새로고침해도 이어진다";
+    this.elements.overlayReset.classList.toggle("is-hidden", !hasSave);
+  }
+
   /** 시작 오버레이가 클릭되면 콜백을 호출한다. */
   public onEngageRequested(callback: () => void): void {
     this.elements.overlay.addEventListener("click", callback);
@@ -166,6 +212,30 @@ export class Hud {
    * @param input 이번 프레임의 조종 입력
    * @param isEngaged 조종이 활성화돼 있는지 여부
    */
+  /**
+   * 프레임 수를 갱신한다.
+   *
+   * 한 프레임의 델타를 그대로 뒤집으면 값이 튀어서 읽을 수가 없다. 지수 평균
+   * 으로 눌러 큰 흐름만 남긴다. 소수점은 버린다 — 정확한 값이 아니라 60 근처
+   * 인지 30 근처인지가 알고 싶은 것이다.
+   *
+   * @param deltaSeconds 프레임 델타 타임 (s)
+   */
+  public updateFps(deltaSeconds: number): void {
+    if (deltaSeconds <= 0) {
+      return;
+    }
+    const instant: number = 1 / deltaSeconds;
+    this.smoothedFps += (instant - this.smoothedFps) * 0.08;
+
+    const rounded: number = Math.round(this.smoothedFps);
+    if (rounded === this.lastShownFps) {
+      return;
+    }
+    this.lastShownFps = rounded;
+    this.elements.fps.textContent = `${rounded}`;
+  }
+
   public updateFlight(
     speed: number,
     input: FlightInputState,
@@ -203,6 +273,11 @@ export class Hud {
 
     if (isEngaged !== this.lastEngaged) {
       this.elements.overlay.classList.toggle("hidden", isEngaged);
+      // 한 번 조종해본 뒤로는 조작 안내를 접는다. Esc 로 빠져나올 때마다 안내가
+      // 통째로 다시 뜨면 알려주는 것이 아니라 가로막는 것이 된다.
+      if (isEngaged) {
+        this.elements.overlay.classList.add("returning");
+      }
       this.lastEngaged = isEngaged;
     }
   }
