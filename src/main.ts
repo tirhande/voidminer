@@ -376,7 +376,14 @@ async function bootstrap(): Promise<void> {
 
     // 거점은 도킹하는 곳이지 통과하는 곳이 아니다.
     station.resolveCollision(ship.position, ship.velocity);
-    station.update(deltaSeconds);
+    // 물려 있는 동안에는 구조물을 세운다.
+    //
+    // 돌게 두면 둘 중 하나가 된다. 함선까지 같이 돌리면 뒤에 붙은 카메라가
+    // 통째로 돌아 배경이 흐르고, 함선을 세워두면 함선이 원 궤도를 따라 옆으로
+    // 미끄러진다. 물려 있는데 저 혼자 어디론가 가는 것으로 보인다.
+    //
+    // 도킹 중에는 어차피 화면을 보고 있으므로 세워두는 편이 낫다.
+    station.update(stationConsole.isDocked ? 0 : deltaSeconds);
     // 물려 있으면 구조물을 따라 돈다. 안 붙들면 계류 팔이 함선을 두고 떠나
     // 거리가 벌어지다 도킹이 저절로 풀린다.
     if (dockAnchor !== null) {

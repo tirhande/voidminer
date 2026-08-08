@@ -53,6 +53,17 @@ function step(
   );
 }
 
+/** 격자에서 칸 하나를 찾는다. */
+function findCell(view: StationView, key: string): StationCell {
+  const found: StationCell | undefined = [...view.storage, ...view.equipment].find(
+    (cell) => cell.key === key,
+  );
+  if (found === undefined) {
+    throw new Error(`${key} 칸을 찾지 못했다`);
+  }
+  return found;
+}
+
 describe("도킹", () => {
   it("범위 밖에서는 안내가 뜨지 않는다", () => {
     const setup = buildSetup();
@@ -154,17 +165,6 @@ describe("거점 조작", () => {
 });
 
 describe("거점 화면", () => {
-  /** 격자에서 칸 하나를 찾는다. */
-  function findCell(view: StationView, key: string): StationCell {
-    const found: StationCell | undefined = [...view.storage, ...view.equipment].find(
-      (cell) => cell.key === key,
-    );
-    if (found === undefined) {
-      throw new Error(`${key} 칸을 찾지 못했다`);
-    }
-    return found;
-  }
-
   it("칸 수와 자리가 항상 같다", () => {
     // 없는 것을 감추면 남은 칸이 앞으로 밀려 같은 광물이 매번 다른 자리에
     // 놓인다. 그러면 격자가 아니라 목록이다.
@@ -317,7 +317,7 @@ describe("거점 화면", () => {
     setup.console.execute({ kind: "UNLOAD" }, setup.cargo, setup.stock, setup.equipment);
 
     setup.console.setQuantity(5);
-    const cell = findCell(step(setup, setup.docked), `ore:${RESOURCE.Copper}`);
+    const cell = findCell(step(setup, setup.docked), `ingot:${RESOURCE.Copper}`);
     const smelt = cell.actions.find((button) => button.action.kind === "SMELT");
     setup.console.execute(smelt!.action, setup.cargo, setup.stock, setup.equipment);
 
@@ -366,6 +366,35 @@ describe("칸 아이콘", () => {
 
     for (const cell of step(setup, setup.docked).storage) {
       expect(cell.iconKey.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("만드는 일은 만들어지는 것의 칸에 있다", () => {
+    // 합금은 합금 칸에서 만든다. 주괴도 주괴 칸에서 만드는 것이 맞다.
+    // 광석 칸에 제련을 두면 같은 격자에서 규칙이 둘이 된다.
+    const setup = buildSetup();
+    setup.cargo.add(RESOURCE.Copper, 40);
+    setup.console.execute({ kind: "UNLOAD" }, setup.cargo, setup.stock, setup.equipment);
+    const view = step(setup, setup.docked);
+
+    const ore = findCell(view, `ore:${RESOURCE.Copper}`);
+    const ingot = findCell(view, `ingot:${RESOURCE.Copper}`);
+
+    expect(ore.actions.some((button) => button.action.kind === "SMELT")).toBe(false);
+    expect(ingot.actions.some((button) => button.action.kind === "SMELT")).toBe(true);
+  });
+
+  it("장비 칸은 수량을 묻지 않는다", () => {
+    // 장비는 한 번에 한 단계씩만 올라간다. 수량을 물으면 무엇에 대한 숫자인지
+    // 알 수 없다.
+    const setup = buildSetup();
+    const view = step(setup, setup.docked);
+
+    for (const cell of view.equipment) {
+      expect(cell.usesQuantity).toBe(false);
+    }
+    for (const cell of view.storage) {
+      expect(cell.usesQuantity).toBe(true);
     }
   });
 });

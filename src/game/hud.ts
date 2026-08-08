@@ -667,7 +667,7 @@ export class Hud {
 
     // 수량을 먼저 고르고 행동을 누른다. 행동마다 수량 버튼을 따로 두면 버튼이
     // 배로 늘어 무엇을 누를지가 흐려진다.
-    if (cell.actions.length > 0) {
+    if (cell.usesQuantity && cell.actions.length > 0) {
       const chips: HTMLDivElement = document.createElement("div");
       chips.className = "quantity-chips";
 

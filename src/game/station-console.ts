@@ -104,6 +104,13 @@ export type StationCell = {
   readonly kind: StationCellKind;
   /** 보유량이 0 인지. 자리는 지키되 흐리게 둔다 */
   readonly isEmpty: boolean;
+  /**
+   * 수량을 고를 수 있는 칸인지.
+   *
+   * 장비는 한 번에 한 단계씩만 올라간다. 수량을 물으면 무엇에 대한 숫자인지
+   * 알 수 없다.
+   */
+  readonly usesQuantity: boolean;
   /** 아래 상세 줄에 적을 설명 */
   readonly detail: string;
   /** 이 칸을 골랐을 때 할 수 있는 일 */
@@ -419,7 +426,18 @@ function describeStorage(
         ore > 0
           ? `제련하면 주괴가 된다. 파는 값은 개당 ${SELL_PRICE.Ore} 크레딧`
           : describeRequirement(mineral, equipment),
-      actions: ore > 0 ? describeOreActions(mineral, ore, quantity) : [],
+      usesQuantity: true,
+      actions:
+        ore > 0
+          ? [
+              {
+                label: "팔기",
+                detail: `${Math.min(ore, quantity)} 개 · ${Math.min(ore, quantity) * SELL_PRICE.Ore} 크레딧`,
+                action: { kind: "SELL_ORE", mineral, amount: quantity },
+                isAvailable: true,
+              },
+            ]
+          : [],
     });
   }
 
@@ -439,17 +457,8 @@ function describeStorage(
         ingots > 0
           ? `장비 강화와 합금에 쓴다. 파는 값은 개당 ${SELL_PRICE.Ingot} 크레딧`
           : `${definition.displayName} 광석 ${SMELTING.OrePerIngot} 개를 제련하면 하나가 된다`,
-      actions:
-        ingots > 0
-          ? [
-              {
-                label: "팔기",
-                detail: `${Math.min(ingots, quantity)} 개 · ${Math.min(ingots, quantity) * SELL_PRICE.Ingot} 크레딧`,
-                action: { kind: "SELL_INGOTS", mineral, amount: quantity },
-                isAvailable: true,
-              },
-            ]
-          : [],
+      usesQuantity: true,
+      actions: describeIngotActions(mineral, stock, ingots, quantity),
     });
   }
 
@@ -472,6 +481,7 @@ function describeStorage(
         count > 0
           ? "다음 티어 장비를 제작하는 재료다. 팔지 않는다"
           : `${primary} 주괴 ${SMELTING.PrimaryIngotPerAlloy} 과 ${pair} 주괴 ${SMELTING.PairIngotPerAlloy} 로 만든다`,
+      usesQuantity: true,
       actions: describeAlloyActions(alloy, stock, quantity),
     });
   }
@@ -480,37 +490,48 @@ function describeStorage(
 }
 
 /**
- * 광석 칸에서 할 수 있는 일.
+ * 주괴 칸에서 할 수 있는 일.
  *
- * 제련 수량은 **만들 주괴 수**로 센다. 목적이 "주괴 열 개"이지 "광석 마흔 개"가
- * 아니기 때문이다. 드는 광석은 설명에 함께 적는다.
+ * 만드는 일은 **만들어지는 것의 칸**에 둔다. 합금은 합금 칸에서 만들므로
+ * 주괴도 주괴 칸에서 만드는 것이 맞다. 광석 칸에 제련을 두면 같은 격자에서
+ * 규칙이 둘이 된다.
+ *
+ * 수량은 만들 주괴 수로 센다. 목적이 "주괴 열 개" 이지 "광석 마흔 개" 가
+ * 아니다. 드는 광석은 설명에 함께 적는다.
  */
-function describeOreActions(
+function describeIngotActions(
   mineral: MineralId,
-  ore: number,
+  stock: StationStock,
+  ingots: number,
   quantity: number,
 ): StationButton[] {
-  const possibleIngots: number = Math.floor(ore / SMELTING.OrePerIngot);
-  const ingots: number = Math.min(possibleIngots, quantity);
-  const sellCount: number = Math.min(ore, quantity);
+  const ore: number = stock.oreOf(mineral);
+  const possible: number = Math.floor(ore / SMELTING.OrePerIngot);
+  const made: number = Math.min(possible, quantity);
+  const sellCount: number = Math.min(ingots, quantity);
 
-  return [
+  const actions: StationButton[] = [
     {
       label: "제련",
       detail:
-        possibleIngots > 0
-          ? `주괴 ${ingots} · 광석 ${ingots * SMELTING.OrePerIngot} 소모`
+        possible > 0
+          ? `${made} 개 · 광석 ${made * SMELTING.OrePerIngot} 소모`
           : `광석이 ${SMELTING.OrePerIngot} 개는 있어야 한다`,
       action: { kind: "SMELT", mineral, amount: quantity },
-      isAvailable: possibleIngots > 0,
-    },
-    {
-      label: "팔기",
-      detail: `${sellCount} 개 · ${sellCount * SELL_PRICE.Ore} 크레딧`,
-      action: { kind: "SELL_ORE", mineral, amount: quantity },
-      isAvailable: true,
+      isAvailable: possible > 0,
     },
   ];
+
+  if (ingots > 0) {
+    actions.push({
+      label: "팔기",
+      detail: `${sellCount} 개 · ${sellCount * SELL_PRICE.Ingot} 크레딧`,
+      action: { kind: "SELL_INGOTS", mineral, amount: quantity },
+      isAvailable: true,
+    });
+  }
+
+  return actions;
 }
 
 /** 합금 칸에서 할 수 있는 일. 재료라 팔지는 않는다. */
@@ -634,6 +655,7 @@ function describeEquipment(
     {
       key: "equipment:laser",
       iconKey: "",
+      usesQuantity: false,
       isEmpty: false,
       name: "채굴 레이저",
       short: "채굴 레이저",
@@ -665,6 +687,7 @@ function describeEquipment(
     {
       key: "equipment:tractor",
       iconKey: "",
+      usesQuantity: false,
       isEmpty: false,
       name: "견인빔",
       short: "견인빔",
