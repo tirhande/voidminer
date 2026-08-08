@@ -7,6 +7,7 @@ import type { ObjectiveView } from "./objectives";
 import type {
   StationAction,
   StationButton,
+  StationCell,
   StationView,
   SystemRow,
 } from "./station-console";
@@ -36,12 +37,10 @@ type HudElements = {
   readonly dockPrompt: HTMLElement;
   readonly stationPanel: HTMLElement;
   readonly stationCredits: HTMLElement;
-  readonly stationStock: HTMLElement;
-  readonly stationAlloys: HTMLElement;
+  readonly stationStorage: HTMLElement;
   readonly stationOperations: HTMLElement;
-  readonly stationLaser: HTMLElement;
-  readonly stationTractor: HTMLElement;
   readonly stationEquipment: HTMLElement;
+  readonly stationDetail: HTMLElement;
   readonly stationSystems: HTMLElement;
   readonly stationSystemLabel: HTMLElement;
   readonly stationMessage: HTMLElement;
@@ -78,6 +77,13 @@ export class Hud {
   private lastStationSignature: string = "";
   private lastObjectiveSignature: string = "";
   private stationActionCallback: ((action: StationAction) => void) | null = null;
+  /**
+   * 지금 고른 격자 칸.
+   *
+   * 순수한 화면 상태다. 무엇을 눌러 보고 있는지가 게임 상태를 바꾸지는 않으므로
+   * 콘솔까지 올리지 않는다.
+   */
+  private selectedCellKey: string | null = null;
 
   public constructor() {
     this.elements = {
@@ -104,12 +110,10 @@ export class Hud {
       dockPrompt: requireElement("hud-dock-prompt"),
       stationPanel: requireElement("hud-station"),
       stationCredits: requireElement("station-credits"),
-      stationStock: requireElement("station-stock"),
-      stationAlloys: requireElement("station-alloys"),
+      stationStorage: requireElement("station-storage"),
       stationOperations: requireElement("station-operations"),
-      stationLaser: requireElement("station-laser"),
-      stationTractor: requireElement("station-tractor"),
       stationEquipment: requireElement("station-equipment"),
+      stationDetail: requireElement("station-detail"),
       stationSystems: requireElement("station-systems"),
       stationSystemLabel: requireElement("station-system-label"),
       stationMessage: requireElement("station-message"),
@@ -297,19 +301,22 @@ export class Hud {
 
     if (!view.isDocked) {
       this.lastStationSignature = "";
+      this.selectedCellKey = null;
       return;
     }
 
     const signature: string = JSON.stringify([
       view.credits,
-      view.stock.map((row) => [row.name, row.ore, row.ingots]),
-      view.alloys.map((row) => [row.name, row.count]),
+      view.storage.map((cell) => [cell.key, cell.badge]),
+      view.equipment.map((cell) => [
+        cell.badge,
+        cell.actions.map((button) => [button.label, button.detail, button.isAvailable]),
+      ]),
       view.operations.map((button) => [button.detail, button.isAvailable]),
-      view.equipment.map((button) => [button.label, button.detail, button.isAvailable]),
       view.systems.map((row) => [row.name, row.isCurrent, row.hasMinable]),
-      view.laserLabel,
-      view.tractorLabel,
+      view.systemLabel,
       view.message,
+      this.selectedCellKey,
     ]);
     if (signature === this.lastStationSignature) {
       return;
@@ -318,62 +325,26 @@ export class Hud {
 
     this.elements.stationCredits.textContent = `${view.credits}`;
 
-    this.elements.stationStock.replaceChildren(
-      ...(view.stock.length === 0
-        ? [buildEmptyRow("저장고가 비어 있다")]
-        : view.stock.map((row) => {
-            const line: HTMLDivElement = document.createElement("div");
-            line.className = "stock-row";
-
-            const name: HTMLSpanElement = document.createElement("span");
-            name.className = "name";
-            name.textContent = row.name;
-            name.style.color = toCssColor(row.color);
-
-            const amounts: HTMLSpanElement = document.createElement("span");
-            amounts.className = "amounts";
-            amounts.textContent = `광석 ${row.ore} · 주괴 ${row.ingots}`;
-
-            const buttons: HTMLDivElement = document.createElement("div");
-            buttons.className = "row-buttons";
-            for (const button of [row.sellOre, row.sellIngots]) {
-              if (button !== null) {
-                buttons.append(this.buildButton(button, "small"));
-              }
-            }
-
-            line.append(name, amounts, buttons);
-            return line;
-          })),
+    // 고른 칸이 사라졌을 수 있다. 다 팔면 그 칸이 격자에서 빠진다.
+    const cells: StationCell[] = [...view.storage, ...view.equipment];
+    const selected: StationCell | undefined = cells.find(
+      (cell) => cell.key === this.selectedCellKey,
     );
+    if (selected === undefined) {
+      this.selectedCellKey = null;
+    }
 
-    this.elements.stationAlloys.replaceChildren(
-      ...(view.alloys.length === 0
-        ? [buildEmptyRow("아직 만든 합금이 없다")]
-        : view.alloys.map((row) => {
-            const line: HTMLDivElement = document.createElement("div");
-            line.className = "row";
-
-            const name: HTMLSpanElement = document.createElement("span");
-            name.textContent = row.name;
-            name.style.color = toCssColor(row.color);
-
-            const count: HTMLSpanElement = document.createElement("span");
-            count.textContent = `${row.count}`;
-
-            line.append(name, count);
-            return line;
-          })),
+    this.elements.stationStorage.replaceChildren(
+      ...(view.storage.length === 0
+        ? [buildEmptyRow("저장고가 비어 있다")]
+        : view.storage.map((cell) => this.buildCell(cell))),
+    );
+    this.elements.stationEquipment.replaceChildren(
+      ...view.equipment.map((cell) => this.buildCell(cell)),
     );
 
     this.elements.stationOperations.replaceChildren(
       ...view.operations.map((button) => this.buildButton(button, "wide")),
-    );
-
-    this.elements.stationLaser.textContent = view.laserLabel;
-    this.elements.stationTractor.textContent = view.tractorLabel;
-    this.elements.stationEquipment.replaceChildren(
-      ...view.equipment.map((button) => this.buildButton(button, "wide")),
     );
 
     this.elements.stationSystemLabel.textContent = view.systemLabel;
@@ -381,7 +352,71 @@ export class Hud {
       ...view.systems.map((row) => this.buildSystemRow(row)),
     );
 
+    this.renderDetail(selected);
     this.elements.stationMessage.textContent = view.message;
+  }
+
+  /**
+   * 격자 칸 하나를 만든다.
+   *
+   * 아이콘 38 종이 나오기 전까지는 색 사각형에 첫 글자만 넣는다 (GDD 09).
+   * 배치가 맞는지는 아이콘 없이도 판정되므로 색으로 먼저 자리를 잡는다.
+   */
+  private buildCell(cell: StationCell): HTMLElement {
+    const element: HTMLButtonElement = document.createElement("button");
+    element.className = `station-cell kind-${cell.kind.toLowerCase()}`;
+    element.classList.toggle("is-selected", cell.key === this.selectedCellKey);
+    element.style.setProperty("--cell-color", toCssColor(cell.color));
+    element.title = cell.name;
+
+    const glyph: HTMLSpanElement = document.createElement("span");
+    glyph.className = "glyph";
+    glyph.textContent = cell.short;
+
+    const badge: HTMLSpanElement = document.createElement("span");
+    badge.className = "badge";
+    badge.textContent = cell.badge;
+
+    element.append(glyph, badge);
+    element.addEventListener("click", () => {
+      // 같은 칸을 다시 누르면 선택이 풀린다.
+      this.selectedCellKey = this.selectedCellKey === cell.key ? null : cell.key;
+      this.lastStationSignature = "";
+    });
+
+    return element;
+  }
+
+  /**
+   * 고른 칸의 상세와 할 수 있는 일을 아래 한 줄에 모은다.
+   *
+   * 따로 창을 띄우지 않는다. 창이 하나 더 생기면 그것이 곧 패널이고, 패널을
+   * 오가게 하지 않는 것이 GDD 09 의 전제다.
+   */
+  private renderDetail(cell: StationCell | undefined): void {
+    if (cell === undefined) {
+      this.elements.stationDetail.replaceChildren(
+        buildEmptyRow("칸을 누르면 여기에 상세가 나온다"),
+      );
+      return;
+    }
+
+    const name: HTMLSpanElement = document.createElement("span");
+    name.className = "detail-name";
+    name.textContent = `${cell.name} · ${cell.badge}`;
+    name.style.color = toCssColor(cell.color);
+
+    const text: HTMLSpanElement = document.createElement("span");
+    text.className = "detail-text";
+    text.textContent = cell.detail;
+
+    const buttons: HTMLDivElement = document.createElement("div");
+    buttons.className = "detail-buttons";
+    for (const button of cell.actions) {
+      buttons.append(this.buildButton(button, "small"));
+    }
+
+    this.elements.stationDetail.replaceChildren(name, text, buttons);
   }
 
   /**

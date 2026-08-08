@@ -13,6 +13,7 @@ import {
   type AlloyId,
   type MineralId,
 } from "./minerals";
+import { PALETTE } from "../palette";
 import type { Station } from "./station";
 import {
   STAR_SYSTEM_DEFINITIONS,
@@ -57,14 +58,40 @@ export type StationButton = {
   readonly isAvailable: boolean;
 };
 
-/** 저장고 한 줄. 자원마다 팔기 버튼이 붙는다. */
-export type StockRow = {
+/** 격자 칸의 종류. */
+export const STATION_CELL = {
+  Ore: "ORE",
+  Ingot: "INGOT",
+  Alloy: "ALLOY",
+  Equipment: "EQUIPMENT",
+} as const;
+
+export type StationCellKind = (typeof STATION_CELL)[keyof typeof STATION_CELL];
+
+/**
+ * 격자 칸 하나.
+ *
+ * 칸을 누르면 아래 한 줄에 상세와 할 수 있는 일이 모인다 (GDD 09). 상세를 따로
+ * 띄우지 않는 이유는 창이 하나 더 생기면 그것이 곧 패널이기 때문이다.
+ */
+export type StationCell = {
+  readonly key: string;
   readonly name: string;
+  /**
+   * 칸 안에 넣을 짧은 표기.
+   *
+   * 아이콘 38 종이 나오기 전까지 색 사각형에 첫 글자만 넣는다 (GDD 09).
+   * 배치가 맞는지는 아이콘 없이도 판정된다.
+   */
+  readonly short: string;
   readonly color: number;
-  readonly ore: number;
-  readonly ingots: number;
-  readonly sellOre: StationButton | null;
-  readonly sellIngots: StationButton | null;
+  /** 칸 구석에 적는 수량이나 등급 */
+  readonly badge: string;
+  readonly kind: StationCellKind;
+  /** 아래 상세 줄에 적을 설명 */
+  readonly detail: string;
+  /** 이 칸을 골랐을 때 할 수 있는 일 */
+  readonly actions: ReadonlyArray<StationButton>;
 };
 
 /**
@@ -86,13 +113,6 @@ export type SystemRow = {
   readonly action: StationAction;
 };
 
-/** 합금 한 줄. 제작 재료라 팔지 않는다. */
-export type AlloyRow = {
-  readonly name: string;
-  readonly color: number;
-  readonly count: number;
-};
-
 /** HUD 가 그릴 거점 화면의 내용. */
 export type StationView = {
   readonly isDocked: boolean;
@@ -100,17 +120,15 @@ export type StationView = {
   readonly isDockPromptVisible: boolean;
   readonly distance: number;
   readonly credits: number;
-  readonly stock: ReadonlyArray<StockRow>;
-  readonly alloys: ReadonlyArray<AlloyRow>;
-  /** 저장고와 무관한 공용 작업 */
+  /** 화물 열의 격자. 광석·주괴·합금이 한데 놓인다 */
+  readonly storage: ReadonlyArray<StationCell>;
+  /** 장착 열의 격자 */
+  readonly equipment: ReadonlyArray<StationCell>;
+  /** 저장고 전체를 다루는 작업. 고른 칸과 무관하므로 늘 보인다 */
   readonly operations: ReadonlyArray<StationButton>;
-  /** 장비 관련 작업 */
-  readonly equipment: ReadonlyArray<StationButton>;
   /** 갈 수 있는 항성계 목록 */
   readonly systems: ReadonlyArray<SystemRow>;
   readonly systemLabel: string;
-  readonly laserLabel: string;
-  readonly tractorLabel: string;
   readonly message: string;
 };
 
@@ -185,14 +203,11 @@ export class StationConsole {
       isDockPromptVisible: !this.docked && isInRange,
       distance,
       credits: stock.credits,
-      stock: describeStock(stock),
-      alloys: describeAlloys(stock),
-      operations: describeOperations(cargo, stock),
+      storage: describeStorage(stock),
       equipment: describeEquipment(stock, equipment),
+      operations: describeOperations(cargo, stock),
       systems: describeSystems(this.system, equipment),
       systemLabel: STAR_SYSTEM_DEFINITIONS[this.system].displayName,
-      laserLabel: `채굴 레이저 T${equipment.laserTier} +${equipment.laserUpgrade}`,
-      tractorLabel: `견인빔 T${equipment.tractorTier} · 동시 ${equipment.tractorCapacity}`,
       message: this.lastMessage,
     };
   }
@@ -277,50 +292,65 @@ export class StationConsole {
   }
 }
 
-/** 저장고 현황. 보유량이 0인 광물은 감춘다. */
-function describeStock(stock: StationStock): StockRow[] {
-  const rows: StockRow[] = [];
+/**
+ * 화물 열의 격자.
+ *
+ * 광석·주괴·합금을 한 격자에 늘어놓는다. 종류마다 열을 따로 두면 결국 오가야
+ * 하고, 그것이 GDD 09 가 거부한 구조다.
+ *
+ * 보유량이 0 인 것은 감춘다. 빈 칸 스물넷을 늘 띄워두면 무엇이 있는지가 안
+ * 읽힌다.
+ */
+function describeStorage(stock: StationStock): StationCell[] {
+  const cells: StationCell[] = [];
 
   for (const mineral of MINERAL_ORDER) {
-    const ore: number = stock.oreOf(mineral);
-    const ingots: number = stock.ingotsOf(mineral);
-    if (ore === 0 && ingots === 0) {
-      continue;
-    }
-
     const definition = MINERAL_DEFINITIONS[mineral];
-    rows.push({
-      name: definition.displayName,
-      color: definition.color,
-      ore,
-      ingots,
-      sellOre:
-        ore > 0
-          ? {
-              label: "광석 팔기",
-              detail: `${ore * SELL_PRICE.Ore} 크레딧`,
-              action: { kind: "SELL_ORE", mineral },
-              isAvailable: true,
-            }
-          : null,
-      sellIngots:
-        ingots > 0
-          ? {
-              label: "주괴 팔기",
-              detail: `${ingots * SELL_PRICE.Ingot} 크레딧`,
-              action: { kind: "SELL_INGOTS", mineral },
-              isAvailable: true,
-            }
-          : null,
-    });
+    const ore: number = stock.oreOf(mineral);
+    if (ore > 0) {
+      cells.push({
+        key: `ore:${mineral}`,
+        name: `${definition.displayName} 광석`,
+        short: definition.displayName.charAt(0),
+        color: definition.color,
+        badge: `${ore}`,
+        kind: STATION_CELL.Ore,
+        detail: `제련하면 주괴가 된다. 파는 값은 개당 ${SELL_PRICE.Ore} 크레딧`,
+        actions: [
+          {
+            label: "팔기",
+            detail: `${ore * SELL_PRICE.Ore} 크레딧`,
+            action: { kind: "SELL_ORE", mineral },
+            isAvailable: true,
+          },
+        ],
+      });
+    }
   }
 
-  return rows;
-}
-
-/** 보유한 합금 목록. */
-function describeAlloys(stock: StationStock): AlloyRow[] {
-  const rows: AlloyRow[] = [];
+  for (const mineral of MINERAL_ORDER) {
+    const definition = MINERAL_DEFINITIONS[mineral];
+    const ingots: number = stock.ingotsOf(mineral);
+    if (ingots > 0) {
+      cells.push({
+        key: `ingot:${mineral}`,
+        name: `${definition.displayName} 주괴`,
+        short: definition.displayName.charAt(0),
+        color: definition.color,
+        badge: `${ingots}`,
+        kind: STATION_CELL.Ingot,
+        detail: `장비 강화와 합금에 쓴다. 파는 값은 개당 ${SELL_PRICE.Ingot} 크레딧`,
+        actions: [
+          {
+            label: "팔기",
+            detail: `${ingots * SELL_PRICE.Ingot} 크레딧`,
+            action: { kind: "SELL_INGOTS", mineral },
+            isAvailable: true,
+          },
+        ],
+      });
+    }
+  }
 
   for (const alloy of ALLOY_ORDER) {
     const count: number = stock.alloysOf(alloy);
@@ -328,10 +358,19 @@ function describeAlloys(stock: StationStock): AlloyRow[] {
       continue;
     }
     const definition = ALLOY_DEFINITIONS[alloy as AlloyId];
-    rows.push({ name: definition.displayName, color: definition.color, count });
+    cells.push({
+      key: `alloy:${alloy}`,
+      name: definition.displayName,
+      short: definition.displayName.charAt(0),
+      color: definition.color,
+      badge: `${count}`,
+      kind: STATION_CELL.Alloy,
+      detail: "다음 티어 장비를 제작하는 재료다. 팔지 않는다",
+      actions: [],
+    });
   }
 
-  return rows;
+  return cells;
 }
 
 /**
@@ -388,11 +427,16 @@ function describeOperations(cargo: Cargo, stock: StationStock): StationButton[] 
   ];
 }
 
-/** 장비 강화와 제작. */
+/**
+ * 장착 열의 격자.
+ *
+ * 칸이 곧 장비이고, 고르면 아래에 강화와 제작이 붙는다. 지금 무엇을 달고 있는
+ * 지와 다음에 무엇을 할 수 있는지가 한자리에 모인다.
+ */
 function describeEquipment(
   stock: StationStock,
   equipment: ShipEquipment,
-): StationButton[] {
+): StationCell[] {
   const isMaxUpgrade: boolean = equipment.laserUpgrade >= MAX_UPGRADE_LEVEL;
   const upgradeCost: UpgradeCost = upgradeCostFor(
     equipment.laserTier,
@@ -417,31 +461,51 @@ function describeEquipment(
 
   return [
     {
-      label: isMaxUpgrade ? "강화 최대" : `강화 ${equipment.laserUpgrade + 1}`,
-      detail: isMaxUpgrade
-        ? "다음 티어를 제작해야 한다"
-        : `${materialName(upgradeCost.material)} ${upgradeCost.amount} (보유 ${stock.materialCount(upgradeCost.material)}) + ${upgradeCost.credits} 크레딧`,
-      action: { kind: "UPGRADE_LASER" },
-      isAvailable:
-        !isMaxUpgrade &&
-        stock.materialCount(upgradeCost.material) >= upgradeCost.amount &&
-        stock.credits >= upgradeCost.credits,
+      key: "equipment:laser",
+      name: "채굴 레이저",
+      short: "레",
+      color: PALETTE.Active,
+      badge: `T${equipment.laserTier}+${equipment.laserUpgrade}`,
+      kind: STATION_CELL.Equipment,
+      detail: `T${equipment.laserTier} 강화 ${equipment.laserUpgrade}. 티어와 강화 수준이 캘 수 있는 광물을 정한다`,
+      actions: [
+        {
+          label: isMaxUpgrade ? "강화 최대" : `강화 ${equipment.laserUpgrade + 1}`,
+          detail: isMaxUpgrade
+            ? "다음 티어를 제작해야 한다"
+            : `${materialName(upgradeCost.material)} ${upgradeCost.amount} (보유 ${stock.materialCount(upgradeCost.material)}) + ${upgradeCost.credits} 크레딧`,
+          action: { kind: "UPGRADE_LASER" },
+          isAvailable:
+            !isMaxUpgrade &&
+            stock.materialCount(upgradeCost.material) >= upgradeCost.amount &&
+            stock.credits >= upgradeCost.credits,
+        },
+        {
+          label:
+            nextLaserTier > MAX_LASER_TIER ? "최대 티어" : `T${nextLaserTier} 제작`,
+          detail: craftDetail(laserCost),
+          action: { kind: "CRAFT_LASER" },
+          isAvailable: canCraft(laserCost),
+        },
+      ],
     },
     {
-      label:
-        nextLaserTier > MAX_LASER_TIER ? "레이저 최대 티어" : `레이저 T${nextLaserTier}`,
-      detail: craftDetail(laserCost),
-      action: { kind: "CRAFT_LASER" },
-      isAvailable: canCraft(laserCost),
-    },
-    {
-      label:
-        nextTractorTier > MAX_LASER_TIER
-          ? "견인빔 최대 티어"
-          : `견인빔 T${nextTractorTier}`,
-      detail: craftDetail(tractorCost),
-      action: { kind: "CRAFT_TRACTOR" },
-      isAvailable: canCraft(tractorCost),
+      key: "equipment:tractor",
+      name: "견인빔",
+      short: "견",
+      color: PALETTE.Signal,
+      badge: `T${equipment.tractorTier}`,
+      kind: STATION_CELL.Equipment,
+      detail: `동시에 ${equipment.tractorCapacity} 개를 끈다. 캐는 속도가 아니라 회수량을 정한다`,
+      actions: [
+        {
+          label:
+            nextTractorTier > MAX_LASER_TIER ? "최대 티어" : `T${nextTractorTier} 제작`,
+          detail: craftDetail(tractorCost),
+          action: { kind: "CRAFT_TRACTOR" },
+          isAvailable: canCraft(tractorCost),
+        },
+      ],
     },
   ];
 }

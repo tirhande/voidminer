@@ -25,6 +25,13 @@ export type ObjectiveSnapshot = {
   readonly seenMinerals: ReadonlySet<MineralId>;
   readonly laserTier: number;
   readonly laserUpgrade: number;
+  /**
+   * 지금 있는 항성계에서 철이 나오는지.
+   *
+   * 광물은 항성계마다 다르므로 (GDD 05) 시작 항성계에서는 아무리 캐도 철이
+   * 안 나온다. 목록을 열어볼 이유가 안내에 없으면 여기서 막힌다.
+   */
+  readonly systemHasIron: boolean;
 };
 
 /** 목표 하나. */
@@ -100,6 +107,12 @@ export const OBJECTIVES: ReadonlyArray<Objective> = [
     text: "청동으로 T2 레이저를 제작한다",
     hint: "거점에서 레이저 제작을 누른다. 철을 캘 수 있게 된다",
     isComplete: (snapshot) => snapshot.laserTier >= 2,
+  },
+  {
+    id: "WARP",
+    text: "철이 나오는 항성계로 워프한다",
+    hint: "시작 항성계에는 철이 없다. 거점 화면 아래 항성계 목록에서 고른다",
+    isComplete: (snapshot) => snapshot.systemHasIron,
   },
   {
     id: "IRON",

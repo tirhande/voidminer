@@ -10,6 +10,7 @@ import { ShipEquipment } from "./game/equipment";
 import { FlightInput } from "./game/flight-input";
 import type { FlightInputState } from "./game/flight-input";
 import { Hud } from "./game/hud";
+import { RESOURCE } from "./game/minerals";
 import { MiningLaser } from "./game/mining-laser";
 import { loadModels, type ModelLibrary } from "./game/model-library";
 import type { AimReport } from "./game/mining-laser";
@@ -305,6 +306,7 @@ async function bootstrap(): Promise<void> {
       seenMinerals: cargo.seenResources,
       laserTier: equipment.laserTier,
       laserUpgrade: equipment.laserUpgrade,
+      systemHasIron: asteroidField.system.minerals.includes(RESOURCE.Iron),
     };
     const objectiveView: ObjectiveView = objectives.update(snapshot);
 

@@ -16,6 +16,7 @@ function initialSnapshot(overrides: Partial<ObjectiveSnapshot> = {}): ObjectiveS
     seenMinerals: new Set<MineralId>(),
     laserTier: 1,
     laserUpgrade: 0,
+    systemHasIron: false,
     ...overrides,
   };
 }
@@ -46,7 +47,19 @@ function progressSnapshots(): ObjectiveSnapshot[] {
       alloyOf: bronze,
     }),
     initialSnapshot({ laserTier: 2, seenMinerals: withTin, alloyOf: bronze }),
-    initialSnapshot({ laserTier: 2, seenMinerals: withIron, alloyOf: bronze }),
+    // 시작 항성계에는 철이 없다. 워프해야 다음 단계가 열린다.
+    initialSnapshot({
+      laserTier: 2,
+      seenMinerals: withTin,
+      alloyOf: bronze,
+      systemHasIron: true,
+    }),
+    initialSnapshot({
+      laserTier: 2,
+      seenMinerals: withIron,
+      alloyOf: bronze,
+      systemHasIron: true,
+    }),
   ];
 }
 

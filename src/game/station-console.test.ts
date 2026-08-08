@@ -6,7 +6,11 @@ import { Cargo } from "./cargo";
 import { ShipEquipment } from "./equipment";
 import { RESOURCE } from "./minerals";
 import { Station } from "./station";
-import { StationConsole, type StationView } from "./station-console";
+import {
+  StationConsole,
+  type StationCell,
+  type StationView,
+} from "./station-console";
 import { StationStock } from "./station-stock";
 import { buildFlightInput } from "../test-support/flight-input-fixture";
 
@@ -149,27 +153,80 @@ describe("거점 조작", () => {
 });
 
 describe("거점 화면", () => {
-  it("보유한 자원만 목록에 나온다", () => {
+  /** 격자에서 칸 하나를 찾는다. */
+  function findCell(view: StationView, key: string): StationCell {
+    const found: StationCell | undefined = [...view.storage, ...view.equipment].find(
+      (cell) => cell.key === key,
+    );
+    if (found === undefined) {
+      throw new Error(`${key} 칸을 찾지 못했다`);
+    }
+    return found;
+  }
+
+  it("보유한 자원만 격자에 나온다", () => {
     const setup = buildSetup();
     setup.cargo.add(RESOURCE.Copper, 20);
     setup.console.execute({ kind: "UNLOAD" }, setup.cargo, setup.stock, setup.equipment);
 
     const view = step(setup, setup.docked);
 
-    expect(view.stock).toHaveLength(1);
-    expect(view.stock[0].name).toBe("구리");
+    // 빈 칸 스물넷을 늘 띄워두면 무엇이 있는지가 안 읽힌다.
+    expect(view.storage).toHaveLength(1);
+    expect(view.storage[0].name).toContain("구리");
+    expect(view.storage[0].badge).toBe("20");
   });
 
-  it("보유량이 있으면 팔기 버튼이 붙는다", () => {
+  it("광석과 주괴가 같은 격자에 놓인다", () => {
+    const setup = buildSetup();
+    setup.cargo.add(RESOURCE.Copper, 40);
+    setup.console.execute({ kind: "UNLOAD" }, setup.cargo, setup.stock, setup.equipment);
+    setup.console.execute({ kind: "SMELT_ALL" }, setup.cargo, setup.stock, setup.equipment);
+
+    const view = step(setup, setup.docked);
+
+    // 종류마다 열을 따로 두면 결국 오가야 한다 (GDD 09).
+    expect(view.storage.some((cell) => cell.kind === "INGOT")).toBe(true);
+  });
+
+  it("칸을 고르면 거기서 팔 수 있다", () => {
     const setup = buildSetup();
     setup.cargo.add(RESOURCE.Copper, 20);
     setup.console.execute({ kind: "UNLOAD" }, setup.cargo, setup.stock, setup.equipment);
 
+    const cell = findCell(step(setup, setup.docked), `ore:${RESOURCE.Copper}`);
+    setup.console.execute(cell.actions[0].action, setup.cargo, setup.stock, setup.equipment);
+
+    expect(setup.stock.oreOf(RESOURCE.Copper)).toBe(0);
+    expect(setup.stock.credits).toBeGreaterThan(0);
+  });
+
+  it("합금은 팔 수 없다", () => {
+    const setup = buildSetup();
+    setup.cargo.add(RESOURCE.Copper, 200);
+    setup.console.execute({ kind: "UNLOAD" }, setup.cargo, setup.stock, setup.equipment);
+    setup.cargo.add(RESOURCE.Tin, 40);
+    setup.console.execute({ kind: "UNLOAD" }, setup.cargo, setup.stock, setup.equipment);
+    setup.console.execute({ kind: "SMELT_ALL" }, setup.cargo, setup.stock, setup.equipment);
+    setup.console.execute({ kind: "ALLOY_ALL" }, setup.cargo, setup.stock, setup.equipment);
+
+    const view = step(setup, setup.docked);
+    const alloys = view.storage.filter((cell) => cell.kind === "ALLOY");
+
+    // 제작 재료다. 팔 수 있으면 다음 티어로 가는 길이 끊긴다.
+    expect(alloys.length).toBeGreaterThan(0);
+    for (const cell of alloys) {
+      expect(cell.actions).toHaveLength(0);
+    }
+  });
+
+  it("장비 칸에 지금 등급이 적힌다", () => {
+    const setup = buildSetup();
+
     const view = step(setup, setup.docked);
 
-    expect(view.stock[0].sellOre).not.toBeNull();
-    // 아직 제련하지 않았으므로 주괴 팔기는 없다.
-    expect(view.stock[0].sellIngots).toBeNull();
+    expect(findCell(view, "equipment:laser").badge).toBe("T1+0");
+    expect(findCell(view, "equipment:tractor").badge).toContain("T1");
   });
 
   it("재료가 모자라면 버튼이 눌리지 않는 상태로 보인다", () => {
@@ -178,18 +235,20 @@ describe("거점 화면", () => {
     const view = step(setup, setup.docked);
 
     // 감추지 않고 흐리게 둔다. 무엇이 필요한지 읽혀야 한다.
-    for (const button of view.equipment) {
-      expect(button.isAvailable).toBe(false);
-      expect(button.detail.length).toBeGreaterThan(0);
+    for (const cell of view.equipment) {
+      for (const button of cell.actions) {
+        expect(button.isAvailable).toBe(false);
+        expect(button.detail.length).toBeGreaterThan(0);
+      }
     }
   });
 
-  it("장비 상태가 화면에 적힌다", () => {
+  it("항성계 목록에 지금 있는 곳이 표시된다", () => {
     const setup = buildSetup();
 
     const view = step(setup, setup.docked);
 
-    expect(view.laserLabel).toContain("T1");
-    expect(view.tractorLabel).toContain("동시");
+    expect(view.systems.filter((row) => row.isCurrent)).toHaveLength(1);
+    expect(view.systemLabel.length).toBeGreaterThan(0);
   });
 });
