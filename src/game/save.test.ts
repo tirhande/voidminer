@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { Cargo } from "./cargo";
 import { ShipEquipment, MAX_UPGRADE_LEVEL } from "./equipment";
 import { ALLOY, RESOURCE } from "./minerals";
+import { ObjectiveTracker } from "./objectives";
 import { SAVE_VERSION, captureSave, parseSave, restoreSave, type SaveData } from "./save";
 import { STAR_SYSTEM, STARTING_SYSTEM } from "./star-systems";
 import { StationStock } from "./station-stock";
@@ -33,24 +34,21 @@ function roundTrip(data: SaveData): {
   cargo: Cargo;
   stock: StationStock;
   equipment: ShipEquipment;
+  objectives: ObjectiveTracker;
   system: string;
 } {
   const cargo: Cargo = new Cargo();
   const stock: StationStock = new StationStock();
   const equipment: ShipEquipment = new ShipEquipment();
-  const system: string = restoreSave(data, cargo, stock, equipment);
-  return { cargo, stock, equipment, system };
+  const objectives: ObjectiveTracker = new ObjectiveTracker();
+  const system: string = restoreSave(data, cargo, stock, equipment, objectives);
+  return { cargo, stock, equipment, objectives, system };
 }
 
 describe("이어하기", () => {
   it("캔 것과 만든 것이 그대로 돌아온다", () => {
     const before = buildProgress();
-    const data: SaveData = captureSave(
-      before.cargo,
-      before.stock,
-      before.equipment,
-      STAR_SYSTEM.Halvex,
-    );
+    const data: SaveData = captureSave(before.cargo, before.stock, before.equipment, STAR_SYSTEM.Halvex, 0);
 
     const after = roundTrip(data);
 
@@ -70,12 +68,7 @@ describe("이어하기", () => {
     // 하역해서 화물이 비어도 목표가 되돌아가면 안 된다.
     const before = buildProgress();
     before.cargo.clear();
-    const data: SaveData = captureSave(
-      before.cargo,
-      before.stock,
-      before.equipment,
-      STARTING_SYSTEM,
-    );
+    const data: SaveData = captureSave(before.cargo, before.stock, before.equipment, STARTING_SYSTEM, 0);
 
     const after = roundTrip(data);
 
@@ -104,6 +97,7 @@ describe("이어하기", () => {
       tractorTier: -3,
       system: "없는항성계",
       seenMinerals: ["없는광물"],
+      objectiveStep: Number.NaN,
     } as unknown as SaveData;
 
     const after = roundTrip(broken);
@@ -124,9 +118,35 @@ describe("이어하기", () => {
       new StationStock(),
       new ShipEquipment(),
       STARTING_SYSTEM,
+      0,
     );
 
     expect(Object.keys(data.cargo)).toHaveLength(0);
     expect(Object.keys(data.ore)).toHaveLength(0);
+  });
+
+  it("튜토리얼 진행이 그대로 돌아온다", () => {
+    // 다시 계산해서 알아낼 수 없는 단계가 있다. "소행성을 채굴한다" 는 이번에
+    // 캔 파편 수로 판정하는데 그 수는 저장하지 않는다.
+    const before = buildProgress();
+    const data: SaveData = captureSave(
+      before.cargo,
+      before.stock,
+      before.equipment,
+      STARTING_SYSTEM,
+      6,
+    );
+
+    expect(roundTrip(data).objectives.completedCount).toBe(6);
+  });
+
+  it("진행 값이 망가져 있으면 처음부터 센다", () => {
+    const before = buildProgress();
+    const broken = {
+      ...captureSave(before.cargo, before.stock, before.equipment, STARTING_SYSTEM, 6),
+      objectiveStep: Number.NaN,
+    } as unknown as SaveData;
+
+    expect(roundTrip(broken).objectives.completedCount).toBe(0);
   });
 });

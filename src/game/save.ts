@@ -1,5 +1,6 @@
 import { Cargo } from "./cargo";
 import { ShipEquipment } from "./equipment";
+import { ObjectiveTracker } from "./objectives";
 import { ALLOY_ORDER, MINERAL_ORDER, type AlloyId, type MineralId } from "./minerals";
 import { STAR_SYSTEM_DEFINITIONS, STARTING_SYSTEM, type StarSystemId } from "./star-systems";
 import { StationStock } from "./station-stock";
@@ -39,6 +40,8 @@ export type SaveData = {
   readonly system: string;
   /** 한 번이라도 캐본 광물. 목표 진행 판정에 쓴다 */
   readonly seenMinerals: ReadonlyArray<string>;
+  /** 끝낸 목표 단계 수. 다시 계산으로는 알아낼 수 없다 */
+  readonly objectiveStep: number;
 };
 
 /** 0 인 항목을 뺀 기록을 만든다. 저장된 것을 눈으로 읽을 수 있어야 한다. */
@@ -62,6 +65,7 @@ export function captureSave(
   stock: StationStock,
   equipment: ShipEquipment,
   system: StarSystemId,
+  objectiveStep: number,
 ): SaveData {
   return {
     version: SAVE_VERSION,
@@ -75,6 +79,7 @@ export function captureSave(
     tractorTier: equipment.tractorTier,
     system,
     seenMinerals: [...cargo.seenResources],
+    objectiveStep,
   };
 }
 
@@ -92,6 +97,7 @@ export function restoreSave(
   cargo: Cargo,
   stock: StationStock,
   equipment: ShipEquipment,
+  objectives: ObjectiveTracker,
 ): StarSystemId {
   for (const mineral of MINERAL_ORDER) {
     const amount: number = numberOf(data.cargo, mineral);
@@ -118,6 +124,8 @@ export function restoreSave(
       cargo.markSeen(mineral as MineralId);
     }
   }
+
+  objectives.restore(data.objectiveStep);
 
   return data.system in STAR_SYSTEM_DEFINITIONS
     ? (data.system as StarSystemId)

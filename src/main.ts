@@ -178,7 +178,13 @@ async function bootstrap(): Promise<void> {
   // 이어서 한다. 새로고침이 곧 초기화면 확인할 때마다 처음부터 캐야 한다.
   const saved: SaveData | null = parseSave(readSave());
   if (saved !== null) {
-    const system: StarSystemId = restoreSave(saved, cargo, stationStock, equipment);
+    const system: StarSystemId = restoreSave(
+      saved,
+      cargo,
+      stationStock,
+      equipment,
+      objectives,
+    );
     if (system !== STARTING_SYSTEM) {
       switchSystem(system);
     } else {
@@ -196,7 +202,13 @@ async function bootstrap(): Promise<void> {
   let lastSaved: string = "";
   function persist(): void {
     const snapshot: string = JSON.stringify(
-      captureSave(cargo, stationStock, equipment, stationConsole.currentSystem),
+      captureSave(
+        cargo,
+        stationStock,
+        equipment,
+        stationConsole.currentSystem,
+        objectives.completedCount,
+      ),
     );
     // 바뀐 것이 없으면 쓰지 않는다. 주기 저장이 가만히 있는 동안에도 계속
     // 저장소를 두드리면 아무 이득 없이 프레임만 갉는다.

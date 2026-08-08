@@ -143,6 +143,26 @@ export type ObjectiveView = {
 export class ObjectiveTracker {
   private index: number = 0;
 
+  /** 지금까지 끝낸 단계 수. 저장에 담는다. */
+  public get completedCount(): number {
+    return this.index;
+  }
+
+  /**
+   * 저장된 진행을 되돌린다.
+   *
+   * 다시 계산해서 알아낼 수 없는 단계가 있다. "소행성을 채굴한다" 는 이번에
+   * 캔 파편 수로 판정하는데 그 수는 저장하지 않는다. 하역해서 화물이 비어
+   * 있으면 "파편을 회수한다" 도 다시 뜬다. 그래서 끝낸 단계 수를 그대로
+   * 들고 있다가 바닥으로 삼는다.
+   */
+  public restore(completedCount: number): void {
+    if (!Number.isFinite(completedCount)) {
+      return;
+    }
+    this.index = Math.min(Math.max(Math.floor(completedCount), 0), OBJECTIVES.length);
+  }
+
   /** 한 프레임분 진행을 판정한다. */
   public update(snapshot: ObjectiveSnapshot): ObjectiveView {
     // 여러 목표를 한 번에 만족시켰을 수 있으므로 더 나아갈 수 없을 때까지 민다.
