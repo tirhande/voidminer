@@ -8,17 +8,20 @@ const STATION_ACCENT = PALETTE.Signal;
 
 /** 밀어낼 방향을 담는 계산용 임시 벡터. */
 const scratchOutward: THREE.Vector3 = new THREE.Vector3();
+const scratchStationQuaternion: THREE.Quaternion = new THREE.Quaternion();
 
 /**
- * 물려 있는 동안 유지할 자리.
+ * 물려 있는 동안 유지할 상대 자세.
  *
- * 구조물 기준 좌표라, 구조물이 돌면 세계 좌표가 따라 돈다. 도킹한 순간의
- * 관계를 그대로 붙들어 두는 것이 목적이다.
+ * 구조물 기준이라, 구조물이 돌면 세계 좌표가 따라 돈다. 도킹한 순간의 관계를
+ * 그대로 붙들어 두는 것이 목적이다.
  *
- * 자세는 담지 않는다. 함선은 자기 방향을 그대로 유지한 채 자리만 따라간다.
+ * 자리와 방향을 함께 담는다. 둘은 떼어놓을 수 없다 — 방향을 고정한 채 자리만
+ * 옮기면 함선이 원 궤도를 따라 옆으로 미끄러진다.
  */
 export type DockAnchor = {
   readonly position: THREE.Vector3;
+  readonly quaternion: THREE.Quaternion;
 };
 
 /**
@@ -229,9 +232,22 @@ export class Station {
    * 세계 좌표로 들고 있으면 구조물이 돌 때 관계가 끊긴다. 구조물 기준으로
    * 바꿔두면 도는 것을 따로 계산하지 않아도 된다.
    */
-  public anchorShip(shipPosition: THREE.Vector3): DockAnchor {
+  public anchorShip(
+    shipPosition: THREE.Vector3,
+    shipQuaternion: THREE.Quaternion,
+  ): DockAnchor {
     this.object3D.updateMatrixWorld(true);
-    return { position: this.object3D.worldToLocal(shipPosition.clone()) };
+    this.object3D.getWorldQuaternion(scratchStationQuaternion);
+
+    // 계산용 임시 값을 그대로 넘기면 안 된다. 매 프레임 같은 값에 구조물
+    // 자세를 다시 써 넣으므로, 적어둔 관계가 덮여 함선이 두 배로 돌아간다.
+    return {
+      position: this.object3D.worldToLocal(shipPosition.clone()),
+      quaternion: scratchStationQuaternion
+        .invert()
+        .multiply(shipQuaternion)
+        .clone(),
+    };
   }
 
   /**
@@ -240,14 +256,21 @@ export class Station {
    * 도킹은 물리적으로 물린 상태다. 구조물이 도는데 함선만 제자리에 있으면
    * 계류 팔이 함선을 두고 떠나고, 거리가 벌어지다 도킹이 저절로 풀린다.
    *
-   * 자리만 옮기고 자세는 건드리지 않는다. 함선까지 같이 돌리면 뒤에 붙은
-   * 카메라가 통째로 돌아 배경이 계속 흐른다. 조종하지 않는 동안 화면이 저 혼자
-   * 움직이면 멀미가 난다.
+   * 자리와 방향을 함께 옮긴다. 물린 물체는 궤도를 따라 옮겨지면서 같은 각만큼
+   * 방향도 돌아간다. 방향을 고정한 채 자리만 옮기면 함선이 원 궤도를 따라 옆으로
+   * 미끄러져서, 물려 있는데 저 혼자 어디론가 가는 것으로 보인다.
    */
-  public holdShip(anchor: DockAnchor, shipPosition: THREE.Vector3): void {
+  public holdShip(
+    anchor: DockAnchor,
+    shipPosition: THREE.Vector3,
+    shipQuaternion: THREE.Quaternion,
+  ): void {
     this.object3D.updateMatrixWorld(true);
+    this.object3D.getWorldQuaternion(scratchStationQuaternion);
+
     shipPosition.copy(anchor.position);
     this.object3D.localToWorld(shipPosition);
+    shipQuaternion.copy(scratchStationQuaternion).multiply(anchor.quaternion);
   }
 
   /**

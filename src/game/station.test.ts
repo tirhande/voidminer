@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 
+import { STATION } from "../constants";
 import { Station } from "./station";
 
 describe("거점 충돌", () => {
@@ -112,11 +113,12 @@ describe("도킹 유지", () => {
     // 넘는 순간 저절로 풀린다.
     const station: Station = new Station(origin);
     const position: THREE.Vector3 = station.dockPoint.clone();
-    const anchor = station.anchorShip(position);
+    const rotation: THREE.Quaternion = new THREE.Quaternion();
+    const anchor = station.anchorShip(position, rotation);
 
     for (let round = 0; round < 60; round += 1) {
       rotate(station, 1);
-      station.holdShip(anchor, position);
+      station.holdShip(anchor, position, rotation);
       expect(station.isWithinDockRange(position)).toBe(true);
     }
   });
@@ -132,20 +134,38 @@ describe("도킹 유지", () => {
     expect(station.isWithinDockRange(position)).toBe(false);
   });
 
-  it("함선 자세는 그대로 둔다", () => {
-    // 함선까지 같이 돌리면 뒤에 붙은 카메라가 통째로 돌아 배경이 계속 흐른다.
-    // 조종하지 않는 동안 화면이 저 혼자 움직이면 멀미가 난다.
+  it("자리와 방향이 함께 돈다", () => {
+    // 물린 물체는 궤도를 따라 옮겨지면서 같은 각만큼 방향도 돌아간다. 방향을
+    // 고정한 채 자리만 옮기면 원 궤도를 따라 옆으로 미끄러진다.
     const station: Station = new Station(origin);
     const position: THREE.Vector3 = station.dockPoint.clone();
-    const before: THREE.Vector3 = position.clone();
-    const anchor = station.anchorShip(position);
+    const rotation: THREE.Quaternion = new THREE.Quaternion();
+    const startPosition: THREE.Vector3 = position.clone();
+    const startRotation: THREE.Quaternion = rotation.clone();
+    const anchor = station.anchorShip(position, rotation);
 
     rotate(station, 30);
-    station.holdShip(anchor, position);
+    station.holdShip(anchor, position, rotation);
 
-    // 자리는 옮겨졌지만 자세를 다루는 값은 애초에 받지 않는다.
-    expect(position.equals(before)).toBe(false);
-    expect(station.isWithinDockRange(position)).toBe(true);
+    expect(position.equals(startPosition)).toBe(false);
+    expect(rotation.angleTo(startRotation)).toBeGreaterThan(0.1);
+  });
+
+  it("도는 각이 구조물과 같다", () => {
+    // 함선만 더 돌거나 덜 돌면 물려 있는 것으로 보이지 않는다.
+    const station: Station = new Station(origin);
+    const position: THREE.Vector3 = station.dockPoint.clone();
+    const rotation: THREE.Quaternion = new THREE.Quaternion();
+    const anchor = station.anchorShip(position, rotation);
+
+    const seconds: number = 30;
+    rotate(station, seconds);
+    station.holdShip(anchor, position, rotation);
+
+    expect(rotation.angleTo(new THREE.Quaternion())).toBeCloseTo(
+      STATION.RotationSpeed * seconds,
+      1,
+    );
   });
 
   it("물린 자리가 도킹 지점에서 벗어나지 않는다", () => {
@@ -154,11 +174,12 @@ describe("도킹 유지", () => {
     const position: THREE.Vector3 = station.dockPoint.clone().add(
       new THREE.Vector3(3, -2, 1),
     );
-    const anchor = station.anchorShip(position);
+    const rotation: THREE.Quaternion = new THREE.Quaternion();
+    const anchor = station.anchorShip(position, rotation);
     const gap: number = position.distanceTo(station.dockPoint);
 
     rotate(station, 120);
-    station.holdShip(anchor, position);
+    station.holdShip(anchor, position, rotation);
 
     expect(position.distanceTo(station.dockPoint)).toBeCloseTo(gap, 3);
   });
