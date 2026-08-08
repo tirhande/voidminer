@@ -113,7 +113,7 @@ describe("거점 조작", () => {
     setup.console.execute({ kind: "UNLOAD" }, setup.cargo, setup.stock, setup.equipment);
 
     setup.console.execute(
-      { kind: "SELL_ORE", mineral: RESOURCE.Copper },
+      { kind: "SELL_ORE", mineral: RESOURCE.Copper, amount: Number.POSITIVE_INFINITY },
       setup.cargo,
       setup.stock,
       setup.equipment,
@@ -132,7 +132,7 @@ describe("거점 조작", () => {
     expect(setup.stock.ingotsOf(RESOURCE.Copper)).toBeGreaterThan(0);
 
     setup.console.execute(
-      { kind: "SELL_INGOTS", mineral: RESOURCE.Copper },
+      { kind: "SELL_INGOTS", mineral: RESOURCE.Copper, amount: Number.POSITIVE_INFINITY },
       setup.cargo,
       setup.stock,
       setup.equipment,
@@ -221,7 +221,9 @@ describe("거점 화면", () => {
     setup.console.execute({ kind: "UNLOAD" }, setup.cargo, setup.stock, setup.equipment);
 
     const cell = findCell(step(setup, setup.docked), `ore:${RESOURCE.Copper}`);
-    setup.console.execute(cell.actions[0].action, setup.cargo, setup.stock, setup.equipment);
+    const sell = cell.actions.find((button) => button.action.kind === "SELL_ORE");
+    expect(sell).toBeDefined();
+    setup.console.execute(sell!.action, setup.cargo, setup.stock, setup.equipment);
 
     expect(setup.stock.oreOf(RESOURCE.Copper)).toBe(0);
     expect(setup.stock.credits).toBeGreaterThan(0);
@@ -244,7 +246,9 @@ describe("거점 화면", () => {
     // 제작 재료다. 팔 수 있으면 다음 티어로 가는 길이 끊긴다.
     expect(alloys.length).toBeGreaterThan(0);
     for (const cell of alloys) {
-      expect(cell.actions).toHaveLength(0);
+      expect(cell.actions.some((button) => button.action.kind.startsWith("SELL"))).toBe(
+        false,
+      );
     }
   });
 
@@ -289,5 +293,57 @@ describe("거점 화면", () => {
 
     expect(view.systems.filter((row) => row.isCurrent)).toHaveLength(1);
     expect(view.systemLabel.length).toBeGreaterThan(0);
+  });
+
+  it("고른 수량만큼만 판다", () => {
+    // 전부만 있으면 조절할 방법이 없다. 크레딧이 조금 모자랄 때 구리를 좀
+    // 팔고 싶어도 팔면 다음 티어에 쓸 것까지 날아간다.
+    const setup = buildSetup();
+    setup.cargo.add(RESOURCE.Copper, 100);
+    setup.console.execute({ kind: "UNLOAD" }, setup.cargo, setup.stock, setup.equipment);
+
+    setup.console.setQuantity(10);
+    const cell = findCell(step(setup, setup.docked), `ore:${RESOURCE.Copper}`);
+    const sell = cell.actions.find((button) => button.action.kind === "SELL_ORE");
+    setup.console.execute(sell!.action, setup.cargo, setup.stock, setup.equipment);
+
+    expect(setup.stock.oreOf(RESOURCE.Copper)).toBe(90);
+  });
+
+  it("제련 수량은 만들 주괴 수로 센다", () => {
+    // 목적이 "주괴 열 개" 이지 "광석 마흔 개" 가 아니다.
+    const setup = buildSetup();
+    setup.cargo.add(RESOURCE.Copper, 100);
+    setup.console.execute({ kind: "UNLOAD" }, setup.cargo, setup.stock, setup.equipment);
+
+    setup.console.setQuantity(5);
+    const cell = findCell(step(setup, setup.docked), `ore:${RESOURCE.Copper}`);
+    const smelt = cell.actions.find((button) => button.action.kind === "SMELT");
+    setup.console.execute(smelt!.action, setup.cargo, setup.stock, setup.equipment);
+
+    expect(setup.stock.ingotsOf(RESOURCE.Copper)).toBe(5);
+    expect(setup.stock.oreOf(RESOURCE.Copper)).toBe(100 - 5 * 4);
+  });
+
+  it("가진 것보다 많이 고르면 있는 만큼만 처리한다", () => {
+    const setup = buildSetup();
+    setup.cargo.add(RESOURCE.Copper, 12);
+    setup.console.execute({ kind: "UNLOAD" }, setup.cargo, setup.stock, setup.equipment);
+
+    setup.console.setQuantity(100);
+    const cell = findCell(step(setup, setup.docked), `ore:${RESOURCE.Copper}`);
+    const sell = cell.actions.find((button) => button.action.kind === "SELL_ORE");
+    setup.console.execute(sell!.action, setup.cargo, setup.stock, setup.equipment);
+
+    expect(setup.stock.oreOf(RESOURCE.Copper)).toBe(0);
+  });
+
+  it("수량은 한 번 고르면 유지된다", () => {
+    const setup = buildSetup();
+
+    setup.console.setQuantity(10);
+
+    expect(step(setup, setup.docked).quantity).toBe(10);
+    expect(step(setup, setup.docked).quantity).toBe(10);
   });
 });

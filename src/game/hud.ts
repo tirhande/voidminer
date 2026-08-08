@@ -5,6 +5,7 @@ import type { FlightInputState } from "./flight-input";
 import { resourceColor, resourceDisplayName } from "./minerals";
 import type { AimReport } from "./mining-laser";
 import type { ObjectiveView } from "./objectives";
+import { QUANTITY_CHOICES, quantityLabel } from "./station-console";
 import type {
   StationAction,
   StationButton,
@@ -87,6 +88,7 @@ export class Hud {
   private lastStationSignature: string = "";
   private lastObjectiveSignature: string = "";
   private stationActionCallback: ((action: StationAction) => void) | null = null;
+  private quantityCallback: ((quantity: number) => void) | null = null;
   /**
    * 지금 고른 격자 칸.
    *
@@ -198,6 +200,11 @@ export class Hud {
       ? "저장된 진행에서 이어서 시작한다"
       : "진행은 자동으로 저장된다. 새로고침해도 이어진다";
     this.elements.overlayReset.classList.toggle("is-hidden", !hasSave);
+  }
+
+  /** 수량 조각을 누르면 콜백을 호출한다. */
+  public onQuantityChange(callback: (quantity: number) => void): void {
+    this.quantityCallback = callback;
   }
 
   /** 시작 오버레이가 클릭되면 콜백을 호출한다. */
@@ -424,6 +431,7 @@ export class Hud {
       view.systems.map((row) => [row.name, row.isCurrent, row.hasMinable]),
       view.systemLabel,
       view.message,
+      view.quantity,
       this.selectedCellKey,
     ]);
     if (signature === this.lastStationSignature) {
@@ -458,7 +466,7 @@ export class Hud {
       ...view.systems.map((row) => this.buildSystemRow(row)),
     );
 
-    this.renderDetail(selected);
+    this.renderDetail(selected, view.quantity);
     this.elements.stationMessage.textContent = view.message;
   }
 
@@ -636,7 +644,7 @@ export class Hud {
    * 따로 창을 띄우지 않는다. 창이 하나 더 생기면 그것이 곧 패널이고, 패널을
    * 오가게 하지 않는 것이 GDD 09 의 전제다.
    */
-  private renderDetail(cell: StationCell | undefined): void {
+  private renderDetail(cell: StationCell | undefined, quantity: number): void {
     if (cell === undefined) {
       this.elements.stationDetail.replaceChildren(
         buildEmptyRow("칸을 누르면 여기에 상세가 나온다"),
@@ -655,6 +663,28 @@ export class Hud {
 
     const buttons: HTMLDivElement = document.createElement("div");
     buttons.className = "detail-buttons";
+
+    // 수량을 먼저 고르고 행동을 누른다. 행동마다 수량 버튼을 따로 두면 버튼이
+    // 배로 늘어 무엇을 누를지가 흐려진다.
+    if (cell.actions.length > 0) {
+      const chips: HTMLDivElement = document.createElement("div");
+      chips.className = "quantity-chips";
+
+      for (const choice of QUANTITY_CHOICES) {
+        const chip: HTMLButtonElement = document.createElement("button");
+        chip.className = "quantity-chip";
+        chip.classList.toggle("is-selected", choice === quantity);
+        chip.textContent = quantityLabel(choice);
+        chip.addEventListener("click", () => {
+          this.quantityCallback?.(choice);
+          this.lastStationSignature = "";
+        });
+        chips.append(chip);
+      }
+
+      buttons.append(chips);
+    }
+
     for (const button of cell.actions) {
       buttons.append(this.buildButton(button, "small"));
     }

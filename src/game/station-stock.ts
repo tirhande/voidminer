@@ -202,17 +202,9 @@ export class StationStock {
    */
   public smeltAll(): number {
     let produced: number = 0;
-
-    for (const [mineral, amount] of [...this.ore]) {
-      const madeIngots: number = Math.floor(amount / SMELTING.OrePerIngot);
-      if (madeIngots <= 0) {
-        continue;
-      }
-      this.ore.set(mineral, amount - madeIngots * SMELTING.OrePerIngot);
-      this.ingots.set(mineral, this.ingotsOf(mineral) + madeIngots);
-      produced += madeIngots;
+    for (const mineral of [...this.ore.keys()]) {
+      produced += this.smelt(mineral);
     }
-
     return produced;
   }
 
@@ -226,41 +218,80 @@ export class StationStock {
    */
   public alloyAll(): number {
     let produced: number = 0;
-
-    for (const definition of Object.values(ALLOY_DEFINITIONS)) {
-      const possibleFromPrimary: number = Math.floor(
-        this.ingotsOf(definition.primary) / SMELTING.PrimaryIngotPerAlloy,
-      );
-      const possibleFromPair: number = Math.floor(
-        this.ingotsOf(definition.pair) / SMELTING.PairIngotPerAlloy,
-      );
-      const made: number = Math.min(possibleFromPrimary, possibleFromPair);
-      if (made <= 0) {
-        continue;
-      }
-
-      this.ingots.set(
-        definition.primary,
-        this.ingotsOf(definition.primary) - made * SMELTING.PrimaryIngotPerAlloy,
-      );
-      this.ingots.set(
-        definition.pair,
-        this.ingotsOf(definition.pair) - made * SMELTING.PairIngotPerAlloy,
-      );
-      this.alloys.set(definition.id, this.alloysOf(definition.id) + made);
-      produced += made;
+    for (const alloy of Object.keys(ALLOY_DEFINITIONS) as AlloyId[]) {
+      produced += this.alloy(alloy);
     }
-
     return produced;
   }
 
+
   /** 지정한 광물의 광석을 판다. 반환값은 얻은 화폐다. */
-  public sellOreOf(mineral: MineralId): number {
-    const count: number = this.oreOf(mineral);
+  public sellOreOf(mineral: MineralId, requested: number = Number.POSITIVE_INFINITY): number {
+    const count: number = Math.min(this.oreOf(mineral), Math.floor(requested));
+    if (count <= 0) {
+      return 0;
+    }
     const earned: number = count * SELL_PRICE.Ore;
-    this.ore.set(mineral, 0);
+    this.ore.set(mineral, this.oreOf(mineral) - count);
     this.creditCount += earned;
     return earned;
+  }
+
+  /**
+   * 광석을 녹여 주괴로 만든다.
+   *
+   * 수량은 **만들 주괴 수**로 받는다. 목적이 "주괴 열 개"이지 "광석 마흔 개"가
+   * 아니기 때문이다. 광석이 모자라면 만들 수 있는 만큼만 만든다.
+   *
+   * @param mineral 녹일 광물
+   * @param requestedIngots 만들려는 주괴 수. 생략하면 가능한 만큼 전부
+   * @returns 실제로 만든 주괴 수
+   */
+  public smelt(
+    mineral: MineralId,
+    requestedIngots: number = Number.POSITIVE_INFINITY,
+  ): number {
+    const possible: number = Math.floor(this.oreOf(mineral) / SMELTING.OrePerIngot);
+    const made: number = Math.min(possible, Math.floor(requestedIngots));
+    if (made <= 0) {
+      return 0;
+    }
+
+    this.ore.set(mineral, this.oreOf(mineral) - made * SMELTING.OrePerIngot);
+    this.ingots.set(mineral, this.ingotsOf(mineral) + made);
+    return made;
+  }
+
+  /**
+   * 짝인 주괴를 합쳐 합금을 만든다.
+   *
+   * @param alloy 만들 합금
+   * @param requested 만들려는 개수. 생략하면 가능한 만큼 전부
+   * @returns 실제로 만든 개수
+   */
+  public alloy(alloy: AlloyId, requested: number = Number.POSITIVE_INFINITY): number {
+    const definition = ALLOY_DEFINITIONS[alloy];
+    const fromPrimary: number = Math.floor(
+      this.ingotsOf(definition.primary) / SMELTING.PrimaryIngotPerAlloy,
+    );
+    const fromPair: number = Math.floor(
+      this.ingotsOf(definition.pair) / SMELTING.PairIngotPerAlloy,
+    );
+    const made: number = Math.min(fromPrimary, fromPair, Math.floor(requested));
+    if (made <= 0) {
+      return 0;
+    }
+
+    this.ingots.set(
+      definition.primary,
+      this.ingotsOf(definition.primary) - made * SMELTING.PrimaryIngotPerAlloy,
+    );
+    this.ingots.set(
+      definition.pair,
+      this.ingotsOf(definition.pair) - made * SMELTING.PairIngotPerAlloy,
+    );
+    this.alloys.set(alloy, this.alloysOf(alloy) + made);
+    return made;
   }
 
   /** 남은 광석을 전부 판다. 반환값은 얻은 화폐다. */
@@ -277,10 +308,16 @@ export class StationStock {
    * 제련한 만큼 값이 붙으므로 광석보다 낫다. 다만 주괴는 제작 재료이기도 하니
    * 무엇을 팔지가 선택이 된다.
    */
-  public sellIngots(mineral: MineralId): number {
-    const count: number = this.ingotsOf(mineral);
+  public sellIngots(
+    mineral: MineralId,
+    requested: number = Number.POSITIVE_INFINITY,
+  ): number {
+    const count: number = Math.min(this.ingotsOf(mineral), Math.floor(requested));
+    if (count <= 0) {
+      return 0;
+    }
     const earned: number = count * SELL_PRICE.Ingot;
-    this.ingots.set(mineral, 0);
+    this.ingots.set(mineral, this.ingotsOf(mineral) - count);
     this.creditCount += earned;
     return earned;
   }

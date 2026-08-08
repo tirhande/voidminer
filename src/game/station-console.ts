@@ -42,8 +42,10 @@ export type StationAction =
   | { readonly kind: "UNLOAD" }
   | { readonly kind: "SMELT_ALL" }
   | { readonly kind: "ALLOY_ALL" }
-  | { readonly kind: "SELL_ORE"; readonly mineral: MineralId }
-  | { readonly kind: "SELL_INGOTS"; readonly mineral: MineralId }
+  | { readonly kind: "SELL_ORE"; readonly mineral: MineralId; readonly amount: number }
+  | { readonly kind: "SELL_INGOTS"; readonly mineral: MineralId; readonly amount: number }
+  | { readonly kind: "SMELT"; readonly mineral: MineralId; readonly amount: number }
+  | { readonly kind: "ALLOY"; readonly alloy: AlloyId; readonly amount: number }
   | { readonly kind: "UPGRADE_LASER" }
   | { readonly kind: "CRAFT_LASER" }
   | { readonly kind: "CRAFT_TRACTOR" }
@@ -134,6 +136,8 @@ export type StationView = {
   readonly credits: number;
   /** 화물 열의 격자. 광석·주괴·합금이 한데 놓인다 */
   readonly storage: ReadonlyArray<StationCell>;
+  /** 지금 고른 수량. 무한대는 전부다 */
+  readonly quantity: number;
   /** 장착 열의 격자 */
   readonly equipment: ReadonlyArray<StationCell>;
   /** 저장고 전체를 다루는 작업. 고른 칸과 무관하므로 늘 보인다 */
@@ -161,6 +165,13 @@ export class StationConsole {
    * 남겨두고 실제 이동은 바깥에서 가져가 처리한다.
    */
   private pendingWarp: StarSystemId | null = null;
+  /**
+   * 고른 수량. 한 번 고르면 유지된다.
+   *
+   * 기본은 전부다. 대개는 다 처리해도 되므로, 조절이 필요한 사람만 바꾸면
+   * 된다.
+   */
+  private quantity: number = Number.POSITIVE_INFINITY;
 
   /** 도킹 중인지 여부. */
   public get isDocked(): boolean {
@@ -176,6 +187,16 @@ export class StationConsole {
   public arriveAt(system: StarSystemId): void {
     this.system = system;
     this.lastMessage = `${STAR_SYSTEM_DEFINITIONS[system].displayName} 도착`;
+  }
+
+  /** 지금 고른 수량. */
+  public get selectedQuantity(): number {
+    return this.quantity;
+  }
+
+  /** 다룰 수량을 정한다. */
+  public setQuantity(value: number): void {
+    this.quantity = value;
   }
 
   /** 눌러둔 워프 목적지를 가져가고 비운다. */
@@ -215,7 +236,8 @@ export class StationConsole {
       isDockPromptVisible: !this.docked && isInRange,
       distance,
       credits: stock.credits,
-      storage: describeStorage(stock, equipment),
+      storage: describeStorage(stock, equipment, this.quantity),
+      quantity: this.quantity,
       equipment: describeEquipment(stock, equipment),
       operations: describeOperations(cargo, stock),
       systems: describeSystems(this.system, equipment),
@@ -261,15 +283,32 @@ export class StationConsole {
         break;
       }
       case "SELL_ORE": {
-        const earned: number = stock.sellOreOf(action.mineral);
+        const earned: number = stock.sellOreOf(action.mineral, action.amount);
         const name: string = MINERAL_DEFINITIONS[action.mineral].displayName;
-        this.lastMessage = `${name} 광석 판매 ${earned} 크레딧`;
+        this.lastMessage =
+          earned > 0 ? `${name} 광석 판매 ${earned} 크레딧` : "팔 광석이 없다";
         break;
       }
       case "SELL_INGOTS": {
-        const earned: number = stock.sellIngots(action.mineral);
+        const earned: number = stock.sellIngots(action.mineral, action.amount);
         const name: string = MINERAL_DEFINITIONS[action.mineral].displayName;
-        this.lastMessage = `${name} 주괴 판매 ${earned} 크레딧`;
+        this.lastMessage =
+          earned > 0 ? `${name} 주괴 판매 ${earned} 크레딧` : "팔 주괴가 없다";
+        break;
+      }
+      case "SMELT": {
+        const made: number = stock.smelt(action.mineral, action.amount);
+        const name: string = MINERAL_DEFINITIONS[action.mineral].displayName;
+        this.lastMessage =
+          made > 0
+            ? `${name} 주괴 ${made} 제련`
+            : `${name} 광석이 ${SMELTING.OrePerIngot} 개는 있어야 한다`;
+        break;
+      }
+      case "ALLOY": {
+        const made: number = stock.alloy(action.alloy, action.amount);
+        const name: string = ALLOY_DEFINITIONS[action.alloy].displayName;
+        this.lastMessage = made > 0 ? `${name} ${made} 생산` : "짝인 주괴가 모자라다";
         break;
       }
       case "UPGRADE_LASER": {
@@ -305,6 +344,26 @@ export class StationConsole {
 }
 
 /**
+ * 한 번에 다룰 수 있는 수량.
+ *
+ * 전부만 있으면 조절할 방법이 없다. 크레딧이 조금 모자랄 때 구리를 좀 팔고
+ * 싶어도 팔면 전부 나가서, 다음 티어에 쓸 것까지 날아간다.
+ *
+ * 무한대는 "가진 만큼 전부"를 뜻한다.
+ */
+export const QUANTITY_CHOICES: ReadonlyArray<number> = [
+  1,
+  10,
+  100,
+  Number.POSITIVE_INFINITY,
+];
+
+/** 수량을 화면에 적는다. */
+export function quantityLabel(quantity: number): string {
+  return Number.isFinite(quantity) ? `${quantity}` : "전부";
+}
+
+/**
  * 그 광물을 지금 장비로 캘 수 있는지 한 줄로 적는다.
  *
  * 빈 칸에 무엇이 필요한지가 적혀 있어야 격자가 목록 노릇을 한다. 없는 것을
@@ -335,7 +394,11 @@ function describeRequirement(mineral: MineralId, equipment: ShipEquipment): stri
  * 밀려 같은 광물이 매번 다른 자리에 놓인다. 그러면 격자가 아니라 목록이다.
  * 빈 칸도 자리를 지켜야 눈이 위치를 외운다.
  */
-function describeStorage(stock: StationStock, equipment: ShipEquipment): StationCell[] {
+function describeStorage(
+  stock: StationStock,
+  equipment: ShipEquipment,
+  quantity: number,
+): StationCell[] {
   const cells: StationCell[] = [];
 
   for (const mineral of MINERAL_ORDER) {
@@ -354,17 +417,7 @@ function describeStorage(stock: StationStock, equipment: ShipEquipment): Station
         ore > 0
           ? `제련하면 주괴가 된다. 파는 값은 개당 ${SELL_PRICE.Ore} 크레딧`
           : describeRequirement(mineral, equipment),
-      actions:
-        ore > 0
-          ? [
-              {
-                label: "팔기",
-                detail: `${ore * SELL_PRICE.Ore} 크레딧`,
-                action: { kind: "SELL_ORE", mineral },
-                isAvailable: true,
-              },
-            ]
-          : [],
+      actions: ore > 0 ? describeOreActions(mineral, ore, quantity) : [],
     });
   }
 
@@ -389,8 +442,8 @@ function describeStorage(stock: StationStock, equipment: ShipEquipment): Station
           ? [
               {
                 label: "팔기",
-                detail: `${ingots * SELL_PRICE.Ingot} 크레딧`,
-                action: { kind: "SELL_INGOTS", mineral },
+                detail: `${Math.min(ingots, quantity)} 개 · ${Math.min(ingots, quantity) * SELL_PRICE.Ingot} 크레딧`,
+                action: { kind: "SELL_INGOTS", mineral, amount: quantity },
                 isAvailable: true,
               },
             ]
@@ -417,11 +470,74 @@ function describeStorage(stock: StationStock, equipment: ShipEquipment): Station
         count > 0
           ? "다음 티어 장비를 제작하는 재료다. 팔지 않는다"
           : `${primary} 주괴 ${SMELTING.PrimaryIngotPerAlloy} 과 ${pair} 주괴 ${SMELTING.PairIngotPerAlloy} 로 만든다`,
-      actions: [],
+      actions: describeAlloyActions(alloy, stock, quantity),
     });
   }
 
   return cells;
+}
+
+/**
+ * 광석 칸에서 할 수 있는 일.
+ *
+ * 제련 수량은 **만들 주괴 수**로 센다. 목적이 "주괴 열 개"이지 "광석 마흔 개"가
+ * 아니기 때문이다. 드는 광석은 설명에 함께 적는다.
+ */
+function describeOreActions(
+  mineral: MineralId,
+  ore: number,
+  quantity: number,
+): StationButton[] {
+  const possibleIngots: number = Math.floor(ore / SMELTING.OrePerIngot);
+  const ingots: number = Math.min(possibleIngots, quantity);
+  const sellCount: number = Math.min(ore, quantity);
+
+  return [
+    {
+      label: "제련",
+      detail:
+        possibleIngots > 0
+          ? `주괴 ${ingots} · 광석 ${ingots * SMELTING.OrePerIngot} 소모`
+          : `광석이 ${SMELTING.OrePerIngot} 개는 있어야 한다`,
+      action: { kind: "SMELT", mineral, amount: quantity },
+      isAvailable: possibleIngots > 0,
+    },
+    {
+      label: "팔기",
+      detail: `${sellCount} 개 · ${sellCount * SELL_PRICE.Ore} 크레딧`,
+      action: { kind: "SELL_ORE", mineral, amount: quantity },
+      isAvailable: true,
+    },
+  ];
+}
+
+/** 합금 칸에서 할 수 있는 일. 재료라 팔지는 않는다. */
+function describeAlloyActions(
+  alloy: AlloyId,
+  stock: StationStock,
+  quantity: number,
+): StationButton[] {
+  const definition = ALLOY_DEFINITIONS[alloy];
+  const fromPrimary: number = Math.floor(
+    stock.ingotsOf(definition.primary) / SMELTING.PrimaryIngotPerAlloy,
+  );
+  const fromPair: number = Math.floor(
+    stock.ingotsOf(definition.pair) / SMELTING.PairIngotPerAlloy,
+  );
+  const possible: number = Math.min(fromPrimary, fromPair);
+  const made: number = Math.min(possible, quantity);
+
+  return [
+    {
+      label: "합금",
+      detail:
+        possible > 0
+          ? `${made} 개 · 주괴 ${made * SMELTING.PrimaryIngotPerAlloy} + 짝 ${made * SMELTING.PairIngotPerAlloy} 소모`
+          : "짝인 주괴가 모자라다",
+      action: { kind: "ALLOY", alloy, amount: quantity },
+      isAvailable: possible > 0,
+    },
+  ];
 }
 
 /**
@@ -463,14 +579,16 @@ function describeOperations(cargo: Cargo, stock: StationStock): StationButton[] 
       action: { kind: "UNLOAD" },
       isAvailable: cargo.total > 0,
     },
+    // 골라서 하는 것은 칸 쪽에 있다. 여기는 다 처리해도 되는 상황을 위한
+    // 지름길이라 수량을 받지 않는다. 대개는 이쪽이면 충분하다.
     {
-      label: "제련",
+      label: "전부 제련",
       detail: `광석 ${SMELTING.OrePerIngot} → 주괴 1`,
       action: { kind: "SMELT_ALL" },
       isAvailable: stock.totalOre >= SMELTING.OrePerIngot,
     },
     {
-      label: "합금",
+      label: "전부 합금",
       detail: `주괴 ${SMELTING.PrimaryIngotPerAlloy} + 짝 ${SMELTING.PairIngotPerAlloy}`,
       action: { kind: "ALLOY_ALL" },
       isAvailable: stock.totalIngots > 0,

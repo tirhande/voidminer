@@ -81,7 +81,7 @@ export const OBJECTIVES: ReadonlyArray<Objective> = [
   {
     id: "UNLOAD",
     text: "화물을 하역하고 제련한다",
-    hint: "거점 화면에서 하역을 누르고 제련을 누른다",
+    hint: "거점 화면에서 하역을 누르고 전부 제련을 누른다",
     isComplete: (snapshot) => snapshot.stockIngots > 0,
   },
   {
@@ -99,7 +99,7 @@ export const OBJECTIVES: ReadonlyArray<Objective> = [
   {
     id: "ALLOY",
     text: "청동을 만든다",
-    hint: "구리 주괴 3 과 주석 주괴 1 을 모아 거점에서 합금을 누른다",
+    hint: "구리 주괴 3 과 주석 주괴 1 을 모아 거점에서 전부 합금을 누른다",
     isComplete: (snapshot) => snapshot.alloyOf(ALLOY.Bronze) > 0 || snapshot.laserTier > 1,
   },
   {

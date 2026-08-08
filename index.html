@@ -506,7 +506,7 @@
       #hud-station .detail-bar {
         display: grid;
         gap: 6px;
-        height: 118px;
+        height: 132px;
         align-content: start;
         overflow-y: auto;
         padding: 10px 12px;
@@ -521,6 +521,34 @@
       #hud-station .detail-text {
         font-size: 11px;
         color: var(--hud-dim);
+      }
+
+      /* 수량을 먼저 고르고 행동을 누른다. 행동보다 앞에 놓아 순서가 보인다. */
+      #hud-station .quantity-chips {
+        display: flex;
+        gap: 4px;
+        margin-right: 6px;
+      }
+
+      .quantity-chip {
+        min-width: 34px;
+        padding: 4px 8px;
+        border: 1px solid rgba(127, 227, 255, 0.22);
+        background: transparent;
+        color: var(--hud-dim);
+        font: inherit;
+        font-size: 11px;
+        cursor: pointer;
+      }
+
+      .quantity-chip:hover {
+        border-color: rgba(127, 227, 255, 0.5);
+      }
+
+      .quantity-chip.is-selected {
+        border-color: var(--hud-cyan);
+        background: rgba(127, 227, 255, 0.14);
+        color: var(--hud-cyan);
       }
 
       #hud-station .detail-buttons {

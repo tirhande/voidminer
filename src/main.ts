@@ -239,6 +239,9 @@ async function bootstrap(): Promise<void> {
     }
     window.location.reload();
   });
+  hud.onQuantityChange((quantity) => {
+    stationConsole.setQuantity(quantity);
+  });
   hud.onStationAction((action) => {
     stationConsole.execute(action, cargo, stationStock, equipment);
     persist();
