@@ -3,3 +3,5 @@ dist
 dist-standalone
 .DS_Store
 *.local
+
+docs/gdd
