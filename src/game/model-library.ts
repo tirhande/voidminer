@@ -2,11 +2,21 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 
 import { mergeByMaterial } from "../rendering/merge-model";
-import { MINERAL_ORDER, type MineralId } from "./minerals";
+import { ALLOY_ORDER, MINERAL_ORDER, type AlloyId, type MineralId } from "./minerals";
 
 /** 광물 id 를 파일 이름으로 바꾼다. `COPPER` → `ore_copper` */
-function modelNameFor(mineral: MineralId): string {
+function oreNameFor(mineral: MineralId): string {
   return `ore_${mineral.toLowerCase()}`;
+}
+
+/** 주괴 파일 이름. `COPPER` → `ingot_copper` */
+function ingotNameFor(mineral: MineralId): string {
+  return `ingot_${mineral.toLowerCase()}`;
+}
+
+/** 합금 파일 이름. `NICKEL_STEEL` → `alloy_nickel_steel` */
+function alloyNameFor(alloy: AlloyId): string {
+  return `alloy_${alloy.toLowerCase()}`;
 }
 
 /** 합쳐서 줄인 그리기 호출을 모아 한 번에 알린다. */
@@ -78,6 +88,13 @@ async function loadModel(
 export type ModelLibrary = {
   /** 광물별 소행성 모델. 없는 광물은 항목이 비어 있다 */
   readonly asteroids: ReadonlyMap<MineralId, THREE.Object3D>;
+  /**
+   * 격자 칸에 쓸 모델. 광석·주괴·합금이 한 묶음에 들어간다.
+   *
+   * 열쇠는 칸이 들고 있는 아이콘 이름이다. 소행성 모델과 따로 두는 이유는
+   * 같은 광물이라도 캐는 것과 녹인 것이 다르게 생겼기 때문이다.
+   */
+  readonly icons: ReadonlyMap<string, THREE.Object3D>;
   /** 함선 선체. 앞뒤 길이가 1 로 맞춰져 있다 */
   readonly ship: THREE.Object3D | null;
   /** 함선에 다는 채굴 레이저 */
@@ -105,10 +122,21 @@ async function loadWebModel(
 
 /** 모델을 모두 읽는다. 실패한 것은 목록에서 빠진다. */
 export async function loadModels(): Promise<ModelLibrary> {
-  const [entries, ship, miningLaser, tractorBeam, station] = await Promise.all([
+  const [entries, ingotEntries, alloyEntries, ship, miningLaser, tractorBeam, station] =
+    await Promise.all([
     Promise.all(
       MINERAL_ORDER.map(async (mineral): Promise<[MineralId, THREE.Object3D | null]> => {
-        return [mineral, await loadWebModel(modelNameFor(mineral))];
+        return [mineral, await loadWebModel(oreNameFor(mineral))];
+      }),
+    ),
+    Promise.all(
+      MINERAL_ORDER.map(async (mineral): Promise<[string, THREE.Object3D | null]> => {
+        return [`ingot:${mineral}`, await loadWebModel(ingotNameFor(mineral))];
+      }),
+    ),
+    Promise.all(
+      ALLOY_ORDER.map(async (alloy): Promise<[string, THREE.Object3D | null]> => {
+        return [`alloy:${alloy}`, await loadWebModel(alloyNameFor(alloy))];
       }),
     ),
     loadWebModel("ship_standard", NORMALIZE.Length),
@@ -135,5 +163,16 @@ export async function loadModels(): Promise<ModelLibrary> {
     console.info("재질별로 합쳐 줄인 그리기 호출:", merged.join(", "));
   }
 
-  return { asteroids, ship, miningLaser, tractorBeam, station };
+  // 격자 칸이 쓰는 열쇠에 맞춰 담는다. 광석은 소행성 모델을 그대로 쓴다.
+  const icons: Map<string, THREE.Object3D> = new Map();
+  for (const [mineral, model] of asteroids) {
+    icons.set(`ore:${mineral}`, model);
+  }
+  for (const [key, model] of [...ingotEntries, ...alloyEntries]) {
+    if (model !== null) {
+      icons.set(key, model);
+    }
+  }
+
+  return { asteroids, icons, ship, miningLaser, tractorBeam, station };
 }

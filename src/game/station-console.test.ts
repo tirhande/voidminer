@@ -347,3 +347,25 @@ describe("거점 화면", () => {
     expect(step(setup, setup.docked).quantity).toBe(10);
   });
 });
+
+describe("칸 아이콘", () => {
+  it("광석과 주괴가 아이콘을 나눠 갖는다", () => {
+    // 같은 광물이라도 캐낸 것과 녹인 것이 다르게 생겼다. 같은 열쇠를 쓰면
+    // 저장고에서 광석과 주괴가 같은 그림으로 보인다.
+    const setup = buildSetup();
+    const view = step(setup, setup.docked);
+
+    const ore = view.storage.find((cell) => cell.key === `ore:${RESOURCE.Copper}`);
+    const ingot = view.storage.find((cell) => cell.key === `ingot:${RESOURCE.Copper}`);
+
+    expect(ore?.iconKey).not.toBe(ingot?.iconKey);
+  });
+
+  it("모든 저장고 칸에 아이콘 열쇠가 있다", () => {
+    const setup = buildSetup();
+
+    for (const cell of step(setup, setup.docked).storage) {
+      expect(cell.iconKey.length).toBeGreaterThan(0);
+    }
+  });
+});

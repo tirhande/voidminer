@@ -224,9 +224,9 @@ async function bootstrap(): Promise<void> {
 
   const input: FlightInput = new FlightInput(canvas);
   const hud: Hud = new Hud();
-  // 소행성 모델을 그림으로 구워 거점 격자에 쓴다. 우주에서 본 것과 저장고에
-  // 든 것이 같은 물건으로 보여야 한다.
-  hud.setIcons(renderModelIcons(models.asteroids));
+  // 모델을 그림으로 구워 격자에 쓴다. 우주에서 본 것과 저장고에 든 것이 같은
+  // 물건으로 보여야 한다.
+  hud.setIcons(renderModelIcons(models.icons));
   hud.onEngageRequested(() => {
     input.requestControl();
   });

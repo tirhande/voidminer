@@ -90,9 +90,11 @@ export type StationCell = {
    */
   readonly short: string;
   /**
-   * 아이콘을 찾을 열쇠. 광물이면 그 광물 id 다.
+   * 아이콘을 찾을 열쇠.
    *
-   * 광석과 주괴가 같은 아이콘을 쓴다. 같은 물질이고 줄이 갈라 놓기 때문이다.
+   * 칸 열쇠와 같은 값이다. 같은 광물이라도 캐낸 것과 녹인 것이 다르게 생겼으
+   * 므로 광석과 주괴가 아이콘을 나눠 갖는다.
+   *
    * 아이콘이 없는 칸은 빈 문자열이라 첫 글자로 대신한다.
    */
   readonly iconKey: string;
@@ -406,7 +408,7 @@ function describeStorage(
     const ore: number = stock.oreOf(mineral);
     cells.push({
       key: `ore:${mineral}`,
-      iconKey: mineral,
+      iconKey: `ore:${mineral}`,
       name: `${definition.displayName} 광석`,
       short: definition.displayName.charAt(0),
       color: definition.color,
@@ -426,7 +428,7 @@ function describeStorage(
     const ingots: number = stock.ingotsOf(mineral);
     cells.push({
       key: `ingot:${mineral}`,
-      iconKey: mineral,
+      iconKey: `ingot:${mineral}`,
       name: `${definition.displayName} 주괴`,
       short: definition.displayName.charAt(0),
       color: definition.color,
@@ -459,7 +461,7 @@ function describeStorage(
 
     cells.push({
       key: `alloy:${alloy}`,
-      iconKey: "",
+      iconKey: `alloy:${alloy}`,
       name: definition.displayName,
       short: definition.displayName.charAt(0),
       color: definition.color,

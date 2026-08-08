@@ -498,7 +498,8 @@ export class Hud {
       element.style.setProperty("--cell-color", toCssColor(color));
       element.title = resourceDisplayName(slot.resource);
 
-      const icon: string | undefined = this.icons.get(slot.resource);
+      // 화물칸에 실리는 것은 캐낸 광석이다.
+      const icon: string | undefined = this.icons.get(`ore:${slot.resource}`);
       const glyph: HTMLElement = document.createElement(
         icon === undefined ? "span" : "img",
       );
