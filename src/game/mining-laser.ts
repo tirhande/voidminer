@@ -1,7 +1,8 @@
 import * as THREE from "three";
 
-import { MINING_LASER } from "../constants";
+import { BEAM_LOOK, MINING_LASER } from "../constants";
 import { PALETTE, POINT_LIGHT } from "../palette";
+import { createBeamShellMaterial } from "../rendering/beam-material";
 import type { Asteroid } from "./asteroid";
 import type { AsteroidField } from "./asteroid-field";
 import type { DebrisField } from "./debris-field";
@@ -63,9 +64,14 @@ export class MiningLaser {
    * 자리가 달라지므로 함선이 정해서 알려준다.
    */
   private readonly muzzleOffset: THREE.Vector3 = new THREE.Vector3(0, -0.2, -2.2);
-  private readonly beam: THREE.Mesh<THREE.CylinderGeometry, THREE.MeshBasicMaterial>;
+  /** 안쪽 심. 흰빛에 가깝게 태워 블룸이 물게 한다 */
+  private readonly core: THREE.Mesh<THREE.CylinderGeometry, THREE.MeshBasicMaterial>;
+  /** 바깥 껍질. 흐르는 무늬로 빛기둥처럼 보이게 한다 */
+  private readonly shell: THREE.Mesh<THREE.CylinderGeometry, THREE.ShaderMaterial>;
   private readonly impact: THREE.Mesh<THREE.SphereGeometry, THREE.MeshBasicMaterial>;
   private readonly impactLight: THREE.PointLight;
+  /** 총구 발광. 빔이 어디서 나오는지 알린다 */
+  private readonly muzzleFlash: THREE.Mesh<THREE.SphereGeometry, THREE.MeshBasicMaterial>;
 
   /** 파편 하나를 채우기 위해 쌓아둔 광물량. */
   private pendingMineral: number = 0;
@@ -78,17 +84,47 @@ export class MiningLaser {
     this.object3D = new THREE.Group();
     this.object3D.name = "MiningLaser";
 
-    this.beam = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.16, 0.16, 1, 6, 1, true),
+    // 심과 껍질 두 겹으로 그린다. 한 겹이면 굵기와 색이 하나로 묶여 막대기가
+    // 된다. 가는 흰 심을 굵은 색 껍질이 감싸야 빛으로 읽힌다.
+    this.core = new THREE.Mesh(
+      new THREE.CylinderGeometry(BEAM_LOOK.CoreRadius, BEAM_LOOK.CoreRadius, 1, 6, 1, true),
+      new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.95,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+      }),
+    );
+    this.core.visible = false;
+    this.object3D.add(this.core);
+
+    this.shell = new THREE.Mesh(
+      new THREE.CylinderGeometry(
+        BEAM_LOOK.ShellRadius,
+        BEAM_LOOK.ShellRadius,
+        1,
+        12,
+        1,
+        true,
+      ),
+      createBeamShellMaterial(BEAM_COLOR_ALLOWED),
+    );
+    this.shell.visible = false;
+    this.object3D.add(this.shell);
+
+    this.muzzleFlash = new THREE.Mesh(
+      new THREE.SphereGeometry(BEAM_LOOK.MuzzleRadius, 10, 10),
       new THREE.MeshBasicMaterial({
         color: BEAM_COLOR_ALLOWED,
         transparent: true,
-        opacity: 0.85,
+        opacity: 0.8,
         depthWrite: false,
+        blending: THREE.AdditiveBlending,
       }),
     );
-    this.beam.visible = false;
-    this.object3D.add(this.beam);
+    this.muzzleFlash.visible = false;
+    this.object3D.add(this.muzzleFlash);
 
     this.impact = new THREE.Mesh(
       new THREE.SphereGeometry(1, 12, 12),
@@ -97,6 +133,7 @@ export class MiningLaser {
         transparent: true,
         opacity: 0.9,
         depthWrite: false,
+        blending: THREE.AdditiveBlending,
       }),
     );
     this.impact.visible = false;
@@ -234,24 +271,44 @@ export class MiningLaser {
     const color: number = isAllowed ? BEAM_COLOR_ALLOWED : BEAM_COLOR_LOCKED;
 
     scratchMidpoint.copy(scratchMuzzle).addScaledVector(scratchDirection, 0.5);
-    this.beam.position.copy(scratchMidpoint);
-    this.beam.quaternion.setFromUnitVectors(
-      CYLINDER_AXIS,
-      scratchDirection.divideScalar(length),
+    scratchDirection.divideScalar(length);
+
+    // 화면에 보이는 굵기는 거리에 반비례해 가늘어진다. 멀리 쏠수록 조금 키워
+    // 실처럼 보이지 않게 한다.
+    const widen: number = 1 + length * BEAM_LOOK.WidthPerMeter;
+
+    for (const layer of [this.core, this.shell]) {
+      layer.position.copy(scratchMidpoint);
+      layer.quaternion.setFromUnitVectors(CYLINDER_AXIS, scratchDirection);
+      layer.scale.set(widen, length, widen);
+      layer.visible = true;
+    }
+
+    this.core.material.color.setHex(isAllowed ? 0xffffff : color);
+    this.core.material.opacity = isAllowed ? 0.95 : 0.55;
+
+    this.shell.material.uniforms.beamColor.value.setHex(color);
+    this.shell.material.uniforms.elapsed.value = this.pulseSeconds;
+    this.shell.material.uniforms.flowSpeed.value = BEAM_LOOK.FlowSpeed;
+    this.shell.material.uniforms.strength.value = isAllowed ? 1 : 0.55;
+
+    // 총구에도 빛을 둔다. 없으면 빔이 허공에서 시작한 것처럼 보인다.
+    this.muzzleFlash.position.copy(scratchMuzzle);
+    this.muzzleFlash.material.color.setHex(color);
+    this.muzzleFlash.scale.setScalar(
+      (isAllowed ? 1 : 0.6) * (1 + Math.sin(this.pulseSeconds * 30) * 0.18),
     );
-    this.beam.scale.set(1, length, 1);
-    this.beam.material.color.setHex(color);
-    this.beam.material.opacity = isAllowed ? 0.85 : 0.55;
-    this.beam.visible = true;
+    this.muzzleFlash.visible = true;
 
     this.impact.position.copy(hitPoint);
     this.impact.material.color.setHex(color);
     this.impact.visible = true;
 
     if (isAllowed) {
-      // 맥동하는 빛으로 "먹히고 있다"를 알린다.
+      // 맥동하는 빛으로 "먹히고 있다"를 알린다. 닿는 자리가 보여야 빔이 무언가
+      // 에 작용하고 있다는 것이 읽힌다.
       const pulse: number = 1 + Math.sin(this.pulseSeconds * 22) * 0.25;
-      this.impact.scale.setScalar(1.5 * pulse);
+      this.impact.scale.setScalar(BEAM_LOOK.ImpactRadius * pulse * widen);
       this.impact.material.opacity = 0.9;
       this.impactLight.position.copy(hitPoint);
       this.impactLight.color.setHex(color);
@@ -259,14 +316,16 @@ export class MiningLaser {
     } else {
       // 튕긴다. 빛 없이 작게 흔들리기만 한다 — 빔이 아예 안 나가면 고장으로 보인다.
       const jitter: number = 0.75 + Math.sin(this.pulseSeconds * 60) * 0.15;
-      this.impact.scale.setScalar(jitter);
+      this.impact.scale.setScalar(jitter * widen);
       this.impact.material.opacity = 0.5;
       this.impactLight.intensity = 0;
     }
   }
 
   private hideBeam(): void {
-    this.beam.visible = false;
+    this.core.visible = false;
+    this.shell.visible = false;
+    this.muzzleFlash.visible = false;
     this.impact.visible = false;
     this.impactLight.intensity = 0;
   }

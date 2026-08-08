@@ -8,14 +8,23 @@ const AT_ORIGIN: THREE.Vector3 = new THREE.Vector3();
 const NO_ROTATION: THREE.Quaternion = new THREE.Quaternion();
 const STEP_SECONDS: number = 1 / 60;
 
-/** 그려지는 줄기 수를 센다. LineSegments 는 정점 두 개가 줄기 하나다. */
+/** 그려지는 줄기 수를 센다. 줄기 하나가 원뿔 하나다. */
 function strandCount(beam: TractorBeam): number {
-  for (const child of beam.object3D.children) {
-    if (child instanceof THREE.LineSegments) {
-      return child.visible ? child.geometry.drawRange.count / 2 : 0;
-    }
-  }
-  return 0;
+  return beam.object3D.children.filter(
+    (child) => child.name === "TractorCone" && child.visible,
+  ).length;
+}
+
+/** 잡혀 있음을 알리는 표시 수를 센다. */
+function gripCount(beam: TractorBeam): number {
+  return beam.object3D.children.filter(
+    (child) => child.name === "TractorGrip" && child.visible,
+  ).length;
+}
+
+/** 방출구를 찾는다. */
+function findEmitter(beam: TractorBeam): THREE.Object3D | undefined {
+  return beam.object3D.children.find((child) => child.name === "TractorEmitter");
 }
 
 /** 자식 도형 중 가장 큰 것의 반지름을 구한다. */
@@ -93,9 +102,7 @@ describe("견인빔 표현", () => {
 
     beam.update(STEP_SECONDS, true, farAway, NO_ROTATION, []);
 
-    const emitter = beam.object3D.children.find(
-      (child): child is THREE.Mesh => child instanceof THREE.Mesh,
-    );
+    const emitter = findEmitter(beam);
     expect(emitter).toBeDefined();
     // 함선에서 몇 미터 안쪽에 붙어 있어야 한다.
     expect(emitter?.position.distanceTo(farAway)).toBeLessThan(5);
@@ -108,5 +115,44 @@ describe("견인빔 표현", () => {
     // 함선 주위에 카메라 거리에 맞먹는 도형을 두면 옆에서 본 단면이 화면을
     // 가로지르는 선으로 보인다. 사거리 고리가 정확히 그렇게 깨졌다.
     expect(largestGeometryRadius(beam)).toBeLessThan(CAMERA_RIG.Distance);
+  });
+
+  it("잡힌 파편마다 표시가 붙는다", () => {
+    // 원뿔만 있으면 무엇이 잡혔는지 모른다. 허공을 가리키는 것으로 보인다.
+    const beam: TractorBeam = new TractorBeam();
+    const debris: THREE.Vector3[] = [
+      new THREE.Vector3(10, 0, -20),
+      new THREE.Vector3(-8, 4, -15),
+    ];
+
+    beam.update(STEP_SECONDS, true, AT_ORIGIN, NO_ROTATION, debris);
+
+    expect(gripCount(beam)).toBe(debris.length);
+  });
+
+  it("흐르는 입자가 파편과 함선 사이에만 있다", () => {
+    // 흐름이 줄기 밖으로 새면 당기는 것이 아니라 흩뿌리는 것으로 보인다.
+    const beam: TractorBeam = new TractorBeam();
+    const target: THREE.Vector3 = new THREE.Vector3(0, 0, -40);
+
+    beam.update(STEP_SECONDS, true, AT_ORIGIN, NO_ROTATION, [target]);
+
+    const flow = beam.object3D.children.find(
+      (child): child is THREE.Points => child instanceof THREE.Points,
+    );
+    const positions = flow?.geometry.getAttribute("position");
+    expect(positions).toBeDefined();
+
+    const count: number = flow?.geometry.drawRange.count ?? 0;
+    expect(count).toBeGreaterThan(0);
+
+    const point: THREE.Vector3 = new THREE.Vector3();
+    for (let index = 0; index < count; index += 1) {
+      point.fromBufferAttribute(positions as THREE.BufferAttribute, index);
+      // 방출구와 파편을 잇는 선분 길이 안에 있어야 한다.
+      expect(point.distanceTo(target)).toBeLessThanOrEqual(
+        AT_ORIGIN.distanceTo(target) + 5,
+      );
+    }
   });
 });

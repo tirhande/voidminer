@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 
-import { CAMERA_RIG, SHIP_TUNING } from "../constants";
+import { CAMERA_RIG, SHIP_TUNING, STARFIELD } from "../constants";
 import { ChaseCamera } from "./chase-camera";
 import { Ship } from "./ship";
 import { buildFlightInput } from "../test-support/flight-input-fixture";
@@ -104,5 +104,26 @@ describe("추격 카메라", () => {
       CAMERA_RIG.Distance + CAMERA_RIG.SpeedPullback,
     );
     expect(SHIP_TUNING.MaxSpeed).toBeGreaterThan(0);
+  });
+});
+
+describe("깊이 범위", () => {
+  it("가까운 면이 카메라 거리에 비해 지나치게 붙어 있지 않다", () => {
+    // 깊이 값은 가까운 쪽에 몰려 배분된다. 앞을 좁힐수록 뒤가 성겨져서 먼
+    // 소행성 면이 앞뒤를 다투며 깜빡인다. 빠를수록 눈에 띈다.
+    //
+    // 카메라는 함선에서 15m 뒤에 있고 그보다 가까운 것을 그릴 일이 없다.
+    expect(CAMERA_RIG.NearPlane).toBeGreaterThanOrEqual(0.5);
+    expect(CAMERA_RIG.FarPlane / CAMERA_RIG.NearPlane).toBeLessThanOrEqual(10000);
+  });
+
+  it("가까운 면이 함선을 잘라내지 않는다", () => {
+    // 카메라가 함선보다 가까이 오는 일은 없지만, 값이 뒤집히면 함선이 사라진다.
+    expect(CAMERA_RIG.NearPlane).toBeLessThan(CAMERA_RIG.Distance);
+  });
+
+  it("먼 면이 배경보다 멀다", () => {
+    // 성운 구가 잘리면 하늘에 구멍이 뚫린 것처럼 보인다.
+    expect(CAMERA_RIG.FarPlane).toBeGreaterThan(STARFIELD.Radius);
   });
 });

@@ -33,7 +33,12 @@ export class ChaseCamera {
 
   public constructor(ship: Ship, aspect: number) {
     this.ship = ship;
-    this.camera = new THREE.PerspectiveCamera(CAMERA_RIG.BaseFov, aspect, 0.1, 4000);
+    this.camera = new THREE.PerspectiveCamera(
+      CAMERA_RIG.BaseFov,
+      aspect,
+      CAMERA_RIG.NearPlane,
+      CAMERA_RIG.FarPlane,
+    );
     this.snapToShip();
   }
 
@@ -52,9 +57,6 @@ export class ChaseCamera {
   /**
    * 카메라를 한 프레임만큼 함선 쪽으로 따라붙인다.
    *
-   * @param deltaSeconds 프레임 델타 타임 (s)
-   */
-  /**
    * @param deltaSeconds 프레임 델타 타임 (s)
    * @param extraFov 연출로 더 벌리는 시야각 (deg). 워프가 쓴다
    */

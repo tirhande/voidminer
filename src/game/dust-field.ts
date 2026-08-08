@@ -1,6 +1,7 @@
 import * as THREE from "three";
 
 import { DUST_FIELD } from "../constants";
+import { getDotTexture } from "../rendering/dot-texture";
 
 /**
  * 함선 주변을 감싸는 근거리 부유 입자.
@@ -33,6 +34,9 @@ export class DustField {
     geometry.setAttribute("position", this.positionAttribute);
 
     const material: THREE.PointsMaterial = new THREE.PointsMaterial({
+      // 그림을 안 씌우면 점이 정사각형으로 그려진다. 이 입자는 카메라 바로
+      // 옆을 스쳐 지나가므로 부스트 중에 네모가 그대로 드러난다.
+      map: getDotTexture(),
       color: 0x9fc4dd,
       size: DUST_FIELD.PointSize,
       sizeAttenuation: true,
