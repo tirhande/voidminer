@@ -4,6 +4,25 @@ import type { MineralDefinition } from "./minerals";
 /** 티어당 업그레이드 상한. */
 export const MAX_UPGRADE_LEVEL = 5;
 
+/**
+ * 그 등급에서 나오는 채굴 속도.
+ *
+ * 지금 값뿐 아니라 올린 뒤의 값도 물어야 해서 등급을 밖에서 받는다. 계산이
+ * 한 곳에만 있어야 화면에 적는 값과 실제로 캐는 값이 갈리지 않는다.
+ */
+export function laserYieldOf(tier: number, upgrade: number): number {
+  return (
+    MINING_LASER.BaseYieldPerSecond +
+    (tier - 1) * MINING_LASER.YieldPerTier +
+    upgrade * MINING_LASER.YieldPerUpgrade
+  );
+}
+
+/** 그 등급에서 동시에 끌 수 있는 파편 수. */
+export function tractorCapacityOf(tier: number): number {
+  return TRACTOR_BEAM.BaseCapacity + (tier - 1) * TRACTOR_BEAM.CapacityPerTier;
+}
+
 /** 값을 범위 안으로 넣는다. 숫자가 아니면 하한을 준다. */
 function clamp(value: number, low: number, high: number): number {
   if (!Number.isFinite(value)) {
@@ -62,10 +81,7 @@ export class ShipEquipment {
    * 병목이 된다. 두 계통이 갈리는 지점이다 (GDD 02).
    */
   public get tractorCapacity(): number {
-    return (
-      TRACTOR_BEAM.BaseCapacity +
-      (this.tractorTierValue - 1) * TRACTOR_BEAM.CapacityPerTier
-    );
+    return tractorCapacityOf(this.tractorTierValue);
   }
 
   /** 견인빔 티어를 올린다. */
@@ -97,9 +113,7 @@ export class ShipEquipment {
 
   /** 초당 채굴량 (광물 단위/s). 티어와 업그레이드가 함께 반영된다. */
   public get laserYieldPerSecond(): number {
-    const tierBonus: number = (this.laserTierValue - 1) * MINING_LASER.YieldPerTier;
-    const upgradeBonus: number = this.laserUpgradeValue * MINING_LASER.YieldPerUpgrade;
-    return MINING_LASER.BaseYieldPerSecond + tierBonus + upgradeBonus;
+    return laserYieldOf(this.laserTierValue, this.laserUpgradeValue);
   }
 
   /**

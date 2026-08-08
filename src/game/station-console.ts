@@ -3,7 +3,12 @@ import type * as THREE from "three";
 import { SELL_PRICE, SMELTING } from "../constants";
 import type { Cargo } from "./cargo";
 import { KEY_BINDING } from "./controls";
-import { MAX_UPGRADE_LEVEL, type ShipEquipment } from "./equipment";
+import {
+  MAX_UPGRADE_LEVEL,
+  laserYieldOf,
+  tractorCapacityOf,
+  type ShipEquipment,
+} from "./equipment";
 import type { FlightInputState } from "./flight-input";
 import {
   ALLOY_DEFINITIONS,
@@ -57,7 +62,20 @@ export type StationAction =
 /** 화면에 그릴 버튼 하나. */
 export type StationButton = {
   readonly label: string;
+  /**
+   * 늘 보이는 한 줄.
+   *
+   * 누를지 말지 정하는 데 필요한 것만 담는다. 재료가 없으면 못 누르므로
+   * 비용은 여기 있어야 한다.
+   */
   readonly detail: string;
+  /**
+   * 마우스를 올렸을 때만 보이는 한 줄. 없으면 빈 문자열이다.
+   *
+   * 얼마나 좋아지는지는 궁금할 때만 본다. 한 번 알면 다시 안 보는 것이라
+   * 늘 띄워두면 읽히지도 않으면서 줄만 길어진다.
+   */
+  readonly hint: string;
   readonly action: StationAction;
   readonly isAvailable: boolean;
 };
@@ -378,6 +396,57 @@ export class StationConsole {
 }
 
 /**
+ * 채굴 레이저 칸의 설명.
+ *
+ * 다음 등급이 얼마나 되는지를 여기 적는다. 올려볼 때만 보이는 자리에 두면
+ * 정작 궁금한 값이 숨는다. 이 자리는 칸을 눌러야 나오므로 이미 관심을 보인
+ * 뒤이고, 숨지 않는다.
+ */
+function describeLaserCell(
+  equipment: ShipEquipment,
+  isMaxUpgrade: boolean,
+  nextTier: number,
+): string {
+  const now: string = `T${equipment.laserTier} 강화 ${equipment.laserUpgrade} · 채굴 ${equipment.laserYieldPerSecond.toFixed(1)}`;
+  const next: string[] = [];
+
+  if (!isMaxUpgrade) {
+    next.push(
+      `강화 ${equipment.laserUpgrade + 1} 은 ${laserYieldOf(equipment.laserTier, equipment.laserUpgrade + 1).toFixed(1)}`,
+    );
+  }
+  if (nextTier <= MAX_LASER_TIER) {
+    next.push(`T${nextTier} 는 ${laserYieldOf(nextTier, 0).toFixed(1)}`);
+  }
+
+  return next.length > 0 ? `${now}. ${next.join(", ")}` : now;
+}
+
+/** 견인빔 칸의 설명. 다음 등급이 몇 개를 끄는지 함께 적는다. */
+function describeTractorCell(capacity: number, nextTier: number): string {
+  const now: string = `동시에 ${capacity} 개를 끈다. 캐는 속도가 아니라 회수량을 정한다`;
+  return nextTier <= MAX_LASER_TIER
+    ? `${now}. T${nextTier} 는 ${tractorCapacityOf(nextTier)} 개`
+    : now;
+}
+
+/**
+ * 그 강화 단계에서 열리는 짝 광물.
+ *
+ * 강화는 곁가지가 아니라 다음 재료를 여는 열쇠다. 몇 단계에서 무엇이 열리는지
+ * 모르면 강화를 건너뛰고 티어만 올리려 든다.
+ */
+function pairUnlockedAt(tier: number, upgrade: number): string {
+  const names: string[] = MINERAL_ORDER.filter(
+    (mineral) =>
+      MINERAL_DEFINITIONS[mineral].requiredLaserTier === tier &&
+      MINERAL_DEFINITIONS[mineral].requiredLaserUpgrade === upgrade,
+  ).map((mineral) => MINERAL_DEFINITIONS[mineral].displayName);
+
+  return names.length > 0 ? ` · ${names.join(" · ")} 해금` : "";
+}
+
+/**
  * 한 번에 다룰 수 있는 수량.
  *
  * 전부만 있으면 조절할 방법이 없다. 크레딧이 조금 모자랄 때 구리를 좀 팔고
@@ -458,6 +527,7 @@ function describeStorage(
               {
                 label: "팔기",
                 detail: `${Math.min(ore, quantity)} 개 · ${Math.min(ore, quantity) * SELL_PRICE.Ore} 크레딧`,
+                hint: "",
                 action: { kind: "SELL_ORE", mineral, amount: quantity },
                 isAvailable: true,
               },
@@ -542,6 +612,7 @@ function describeIngotActions(
         possible > 0
           ? `${made} 개 · 광석 ${made * SMELTING.OrePerIngot} 소모`
           : `광석이 ${SMELTING.OrePerIngot} 개는 있어야 한다`,
+      hint: "",
       action: { kind: "SMELT", mineral, amount: quantity },
       isAvailable: possible > 0,
     },
@@ -551,6 +622,7 @@ function describeIngotActions(
     actions.push({
       label: "팔기",
       detail: `${sellCount} 개 · ${sellCount * SELL_PRICE.Ingot} 크레딧`,
+      hint: "",
       action: { kind: "SELL_INGOTS", mineral, amount: quantity },
       isAvailable: true,
     });
@@ -580,8 +652,9 @@ function describeAlloyActions(
       label: "합금",
       detail:
         possible > 0
-          ? `${made} 개 · 주괴 ${made * SMELTING.PrimaryIngotPerAlloy} + 짝 ${made * SMELTING.PairIngotPerAlloy} 소모`
-          : "짝인 주괴가 모자라다",
+          ? `${made} 개 · ${MINERAL_DEFINITIONS[definition.primary].displayName} 주괴 ${made * SMELTING.PrimaryIngotPerAlloy} + ${MINERAL_DEFINITIONS[definition.pair].displayName} 주괴 ${made * SMELTING.PairIngotPerAlloy} 소모`
+          : `${MINERAL_DEFINITIONS[definition.primary].displayName} 주괴 ${SMELTING.PrimaryIngotPerAlloy} 과 ${MINERAL_DEFINITIONS[definition.pair].displayName} 주괴 ${SMELTING.PairIngotPerAlloy} 이 있어야 한다`,
+      hint: "",
       action: { kind: "ALLOY", alloy, amount: quantity },
       isAvailable: possible > 0,
     },
@@ -628,6 +701,7 @@ function describeOperations(cargo: Cargo, stock: StationStock): StationButton[] 
     {
       label: "하역",
       detail: `화물 ${Math.floor(cargo.total)}`,
+      hint: "",
       action: { kind: "UNLOAD" },
       isAvailable: cargo.total > 0,
     },
@@ -636,12 +710,14 @@ function describeOperations(cargo: Cargo, stock: StationStock): StationButton[] 
     {
       label: "전부 제련",
       detail: `광석 ${SMELTING.OrePerIngot} → 주괴 1`,
+      hint: "",
       action: { kind: "SMELT_ALL" },
       isAvailable: stock.totalOre >= SMELTING.OrePerIngot,
     },
     {
       label: "전부 합금",
-      detail: `주괴 ${SMELTING.PrimaryIngotPerAlloy} + 짝 ${SMELTING.PairIngotPerAlloy}`,
+      detail: `주광물 주괴 ${SMELTING.PrimaryIngotPerAlloy} + 짝 주괴 ${SMELTING.PairIngotPerAlloy} → 합금 1`,
+      hint: "",
       action: { kind: "ALLOY_ALL" },
       isAvailable: stock.totalIngots > 0,
     },
@@ -673,7 +749,23 @@ function describeEquipment(
   function craftDetail(cost: CraftCost | null): string {
     return cost === null
       ? "더 높은 티어가 없다"
-      : `${materialName(cost.material)} ${cost.amount} (보유 ${stock.materialCount(cost.material)})`;
+      : `${materialName(cost.material)} ${cost.amount}/${stock.materialCount(cost.material)}`;
+  }
+
+  /**
+   * 그 티어를 만들면 처음 캘 수 있게 되는 광물.
+   *
+   * 티어를 올리는 진짜 이유가 속도가 아니라 새 광물이다. 숫자만 적으면
+   * "두 배쯤 빨라지네" 로 읽히고 정작 중요한 것을 놓친다.
+   */
+  function unlockedAt(tier: number): string {
+    const names: string[] = MINERAL_ORDER.filter(
+      (mineral) =>
+        MINERAL_DEFINITIONS[mineral].requiredLaserTier === tier &&
+        MINERAL_DEFINITIONS[mineral].requiredLaserUpgrade === 0,
+    ).map((mineral) => MINERAL_DEFINITIONS[mineral].displayName);
+
+    return names.length > 0 ? ` · ${names.join(" · ")} 해금` : "";
   }
 
   function canCraft(cost: CraftCost | null): boolean {
@@ -691,13 +783,16 @@ function describeEquipment(
       color: PALETTE.Active,
       badge: `T${equipment.laserTier}+${equipment.laserUpgrade}`,
       kind: STATION_CELL.Equipment,
-      detail: `T${equipment.laserTier} 강화 ${equipment.laserUpgrade}. 티어와 강화 수준이 캘 수 있는 광물을 정한다`,
+      detail: describeLaserCell(equipment, isMaxUpgrade, nextLaserTier),
       actions: [
         {
           label: isMaxUpgrade ? "강화 최대" : `강화 ${equipment.laserUpgrade + 1}`,
           detail: isMaxUpgrade
             ? "다음 티어를 제작해야 한다"
-            : `${materialName(upgradeCost.material)} ${upgradeCost.amount} (보유 ${stock.materialCount(upgradeCost.material)}) + ${upgradeCost.credits} 크레딧`,
+            : `${materialName(upgradeCost.material)} ${upgradeCost.amount}/${stock.materialCount(upgradeCost.material)}\n${upgradeCost.credits} 크레딧`,
+          hint: isMaxUpgrade
+            ? ""
+            : `채굴 ${laserYieldOf(equipment.laserTier, equipment.laserUpgrade).toFixed(1)} → ${laserYieldOf(equipment.laserTier, equipment.laserUpgrade + 1).toFixed(1)}${pairUnlockedAt(equipment.laserTier, equipment.laserUpgrade + 1)}`,
           action: { kind: "UPGRADE_LASER" },
           isAvailable:
             !isMaxUpgrade &&
@@ -708,6 +803,10 @@ function describeEquipment(
           label:
             nextLaserTier > MAX_LASER_TIER ? "최대 티어" : `T${nextLaserTier} 제작`,
           detail: craftDetail(laserCost),
+          hint:
+            laserCost === null
+              ? ""
+              : `채굴 ${laserYieldOf(equipment.laserTier, equipment.laserUpgrade).toFixed(1)} → ${laserYieldOf(nextLaserTier, 0).toFixed(1)}${unlockedAt(nextLaserTier)}`,
           action: { kind: "CRAFT_LASER" },
           isAvailable: canCraft(laserCost),
         },
@@ -723,12 +822,16 @@ function describeEquipment(
       color: PALETTE.Signal,
       badge: `T${equipment.tractorTier}`,
       kind: STATION_CELL.Equipment,
-      detail: `동시에 ${equipment.tractorCapacity} 개를 끈다. 캐는 속도가 아니라 회수량을 정한다`,
+      detail: describeTractorCell(equipment.tractorCapacity, nextTractorTier),
       actions: [
         {
           label:
             nextTractorTier > MAX_LASER_TIER ? "최대 티어" : `T${nextTractorTier} 제작`,
           detail: craftDetail(tractorCost),
+          hint:
+            tractorCost === null
+              ? ""
+              : `동시 ${equipment.tractorCapacity} → ${tractorCapacityOf(nextTractorTier)}`,
           action: { kind: "CRAFT_TRACTOR" },
           isAvailable: canCraft(tractorCost),
         },

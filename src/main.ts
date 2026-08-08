@@ -115,6 +115,23 @@ async function bootstrap(): Promise<void> {
   // 모델이 없으면 null 이 오고 절차 생성으로 진행한다. 없는 것이 정상 경로다.
   const models: ModelLibrary = await loadModels();
 
+  /** 저장소가 막혀 있을 수 있다. 못 읽으면 새로 시작한다. */
+  function readSave(): string | null {
+    try {
+      return localStorage.getItem(SAVE_KEY);
+    } catch {
+      return null;
+    }
+  }
+
+  // 저장을 먼저 읽는다. 소행성 필드를 만들려면 어느 항성계인지부터 알아야
+  // 하고, 그 필드는 아래에서 바로 만들어진다.
+  const saved: SaveData | null = parseSave(readSave());
+  const startingSystem: StarSystemId =
+    saved !== null && saved.system in STAR_SYSTEM_DEFINITIONS
+      ? (saved.system as StarSystemId)
+      : STARTING_SYSTEM;
+
   const ship: Ship = new Ship(models.ship, models.miningLaser, models.tractorBeam);
   scene.add(ship.object3D);
 
@@ -140,7 +157,7 @@ async function bootstrap(): Promise<void> {
   let asteroidField: AsteroidField = new AsteroidField(
     fieldOrigin,
     models.asteroids,
-    STAR_SYSTEM_DEFINITIONS[STARTING_SYSTEM],
+    STAR_SYSTEM_DEFINITIONS[startingSystem],
     keepClear,
   );
   scene.add(asteroidField.object3D);
@@ -166,30 +183,13 @@ async function bootstrap(): Promise<void> {
   const stationConsole: StationConsole = new StationConsole();
   const objectives: ObjectiveTracker = new ObjectiveTracker();
 
-  /** 저장소가 막혀 있을 수 있다. 못 읽으면 새로 시작한다. */
-  function readSave(): string | null {
-    try {
-      return localStorage.getItem(SAVE_KEY);
-    } catch {
-      return null;
-    }
-  }
-
-  // 이어서 한다. 새로고침이 곧 초기화면 확인할 때마다 처음부터 캐야 한다.
-  const saved: SaveData | null = parseSave(readSave());
+  // 남은 것을 되돌린다. 항성계는 이미 위에서 읽어 필드를 만드는 데 썼다.
+  //
+  // 여기서 항성계 교체 함수를 부르면 안 된다. 그 함수는 워프 도중에 쓰라고
+  // 만든 것이라 저장과 카메라를 함께 건드리는데, 부팅 중에는 둘 다 아직 없다.
   if (saved !== null) {
-    const system: StarSystemId = restoreSave(
-      saved,
-      cargo,
-      stationStock,
-      equipment,
-      objectives,
-    );
-    if (system !== STARTING_SYSTEM) {
-      switchSystem(system);
-    } else {
-      stationConsole.arriveAt(system);
-    }
+    restoreSave(saved, cargo, stationStock, equipment, objectives);
+    stationConsole.arriveAt(startingSystem);
   }
 
   /**
@@ -288,7 +288,6 @@ async function bootstrap(): Promise<void> {
     ship.position.copy(fieldOrigin);
     ship.object3D.quaternion.identity();
     ship.halt();
-    chaseCamera.snapToShip();
 
     stationConsole.arriveAt(target);
     persist();
@@ -366,7 +365,12 @@ async function bootstrap(): Promise<void> {
       stationConsole.setDocked(false);
       ship.halt();
       warp.start(
-        () => switchSystem(warpTarget),
+        () => {
+          switchSystem(warpTarget);
+          // 함선이 순간이동했으므로 카메라도 함께 옮긴다. 안 옮기면 화면이
+          // 항성계를 가로질러 날아온다.
+          chaseCamera.snapToShip();
+        },
         () => undefined,
       );
     }

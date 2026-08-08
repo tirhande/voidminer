@@ -14,6 +14,9 @@ import type {
   SystemRow,
 } from "./station-console";
 
+/** 마지막 목표 문구를 띄워두는 시간 (ms). 읽을 만큼만 준다. */
+const OBJECTIVE_FADE_MS = 10_000;
+
 /** HUD 가 참조하는 DOM 요소 묶음. */
 type HudElements = {
   readonly speed: HTMLElement;
@@ -89,6 +92,7 @@ export class Hud {
   private lastCargoSignature: string = "";
   private lastStationSignature: string = "";
   private lastObjectiveSignature: string = "";
+  private objectiveFadeTimer: number | null = null;
   private stationActionCallback: ((action: StationAction) => void) | null = null;
   private quantityCallback: ((quantity: number) => void) | null = null;
   /**
@@ -412,12 +416,28 @@ export class Hud {
       this.elements.objectiveStep.textContent = "";
       this.elements.objectiveText.textContent = "첫 사이클 완료";
       this.elements.objectiveHint.textContent = "이제 자유롭게 캐고 올린다";
+      this.scheduleObjectiveFadeOut();
       return;
     }
 
     this.elements.objectiveStep.textContent = `${view.completedCount + 1} / ${view.totalCount}`;
     this.elements.objectiveText.textContent = view.text ?? "";
     this.elements.objectiveHint.textContent = view.hint ?? "";
+  }
+
+  /**
+   * 마지막 문구를 잠시 두었다가 걷는다.
+   *
+   * 안내가 할 일을 다 했는데 자리를 계속 차지하면 안 된다. 곧바로 지우면
+   * 끝났다는 것을 못 읽으므로 읽을 시간만 준다.
+   */
+  private scheduleObjectiveFadeOut(): void {
+    if (this.objectiveFadeTimer !== null) {
+      return;
+    }
+    this.objectiveFadeTimer = window.setTimeout(() => {
+      this.elements.objectiveContainer.classList.add("is-gone");
+    }, OBJECTIVE_FADE_MS);
   }
 
   /** 거점 화면에서 버튼이 눌리면 호출할 콜백을 등록한다. */
@@ -763,18 +783,37 @@ export class Hud {
   private buildButton(button: StationButton, size: "small" | "wide"): HTMLButtonElement {
     const element: HTMLButtonElement = document.createElement("button");
     element.className = `station-button ${size}`;
-    element.disabled = !button.isAvailable;
+    // 비활성으로 두면 브라우저가 마우스 이벤트를 아예 주지 않아 설명이 안
+    // 뜬다. 살지 말지 고민하는 때가 바로 재료가 모자랄 때다. 보기에만 흐리게
+    // 두고 누르는 것은 아래에서 막는다.
+    element.classList.toggle("is-unavailable", !button.isAvailable);
 
     const label: HTMLSpanElement = document.createElement("span");
     label.className = "label";
     label.textContent = button.label;
 
+    // 조건이 여럿이면 줄을 나눈다. 한 줄에 몰면 무엇과 무엇이 필요한지가
+    // 한눈에 안 갈린다.
     const detail: HTMLSpanElement = document.createElement("span");
     detail.className = "detail";
-    detail.textContent = button.detail;
+    for (const line of button.detail.split("\n")) {
+      const row: HTMLSpanElement = document.createElement("span");
+      row.textContent = line;
+      detail.append(row);
+    }
+
+    // 얼마나 좋아지는지는 올렸을 때만 보여준다. 한 번 알면 다시 안 보는
+    // 것이라 늘 띄워두면 읽히지도 않으면서 줄만 길어진다.
+    if (button.hint.length > 0) {
+      element.title = button.hint;
+      element.classList.add("has-hint");
+    }
 
     element.append(label, detail);
     element.addEventListener("click", () => {
+      if (!button.isAvailable) {
+        return;
+      }
       this.stationActionCallback?.(button.action);
     });
 
