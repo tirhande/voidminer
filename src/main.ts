@@ -200,7 +200,19 @@ async function bootstrap(): Promise<void> {
    * 누를 때, 항성계를 옮길 때, 창을 닫을 때.
    */
   let lastSaved: string = "";
+  /**
+   * 저장을 그만둘지 여부.
+   *
+   * 처음부터 다시 시작하면 저장을 지우고 페이지를 새로 연다. 그런데 페이지가
+   * 닫히는 절차에서 창 닫힘 저장이 돌아가 지운 자리에 지금 상태가 그대로 다시
+   * 들어간다. 지운 뒤로는 아무것도 쓰지 않는다.
+   */
+  let saveDisabled: boolean = false;
+
   function persist(): void {
+    if (saveDisabled) {
+      return;
+    }
     const snapshot: string = JSON.stringify(
       captureSave(
         cargo,
@@ -244,6 +256,7 @@ async function bootstrap(): Promise<void> {
   });
   hud.setSaveState(saved !== null);
   hud.onResetRequested(() => {
+    saveDisabled = true;
     try {
       localStorage.removeItem(SAVE_KEY);
     } catch {
