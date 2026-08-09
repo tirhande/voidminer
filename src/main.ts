@@ -256,12 +256,24 @@ async function bootstrap(): Promise<void> {
   });
   hud.setSaveState(saved !== null);
   hud.onResetRequested(() => {
+    // 지우기 전에 저장하는 길을 전부 끊는다. 하나라도 남아 있으면 페이지가
+    // 닫히는 절차에서 그 길로 지금 상태가 다시 들어간다.
     saveDisabled = true;
+    window.removeEventListener("beforeunload", persist);
+    window.removeEventListener("visibilitychange", persistOnHide);
+    window.clearInterval(autosaveTimer);
+
     try {
       localStorage.removeItem(SAVE_KEY);
+      // 지워졌는지 직접 확인한다. 남아 있으면 이 저장소를 통째로 비운다.
+      // 초기화를 눌렀는데 그대로인 것이 가장 나쁘다.
+      if (localStorage.getItem(SAVE_KEY) !== null) {
+        localStorage.clear();
+      }
     } catch {
       // 저장소가 막혀 있으면 지울 것도 없다.
     }
+
     window.location.reload();
   });
   hud.onQuantityChange((quantity) => {
@@ -335,17 +347,20 @@ async function bootstrap(): Promise<void> {
     }
   }
 
+  /** 탭을 벗어날 때 저장한다. 지울 때 떼어내려고 이름을 붙여둔다. */
+  function persistOnHide(): void {
+    if (document.visibilityState === "hidden") {
+      persist();
+    }
+  }
+
   // 캐다가 창을 닫아도 잃지 않는다. 거점에 들르기 전까지 캔 것이 통째로
   // 날아가면 이어하기가 있으나 마나다.
   window.addEventListener("beforeunload", persist);
   // 캐는 동안에는 아무 시점도 걸리지 않는다. 브라우저가 죽으면 그때까지 캔
   // 것을 통째로 잃으므로 주기적으로도 쓴다.
-  window.setInterval(persist, AUTOSAVE_INTERVAL_MS);
-  window.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "hidden") {
-      persist();
-    }
-  });
+  const autosaveTimer: number = window.setInterval(persist, AUTOSAVE_INTERVAL_MS);
+  window.addEventListener("visibilitychange", persistOnHide);
 
   window.addEventListener("resize", () => {
     renderer.setSize(window.innerWidth, window.innerHeight, false);
