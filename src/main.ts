@@ -199,6 +199,13 @@ async function bootstrap(): Promise<void> {
    * 갉아먹는다. 되돌릴 수 없는 것이 바뀌는 순간에만 부른다 — 거점에서 무언가
    * 누를 때, 항성계를 옮길 때, 창을 닫을 때.
    */
+  /**
+   * 직전에 쓴 내용.
+   *
+   * 빈 값으로 두면 안 된다. 첫 비교가 무조건 달라서 아무것도 하지 않아도 첫
+   * 주기 저장이 그냥 나가고, 시작 화면에 가만히 있기만 해도 저장이 생긴다.
+   * 아래에서 시작 상태로 채운다.
+   */
   let lastSaved: string = "";
   /**
    * 저장을 그만둘지 여부.
@@ -234,6 +241,21 @@ async function bootstrap(): Promise<void> {
       // 저장소가 막혀 있어도 게임은 굴러가야 한다. 사생활 보호 모드 등.
     }
   }
+
+  /** 지금 상태를 기록해둔다. 여기서부터 바뀐 것이 있을 때만 저장한다. */
+  function markSaved(): void {
+    lastSaved = JSON.stringify(
+      captureSave(
+        cargo,
+        stationStock,
+        equipment,
+        stationConsole.currentSystem,
+        objectives.completedCount,
+      ),
+    );
+  }
+
+  markSaved();
 
   const chaseCamera: ChaseCamera = new ChaseCamera(
     ship,
